@@ -10,3 +10,4 @@ venv/
 *.tmp
 CLAUDE.md
 PROJECT.md
+.claude/
