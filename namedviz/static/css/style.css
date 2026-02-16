@@ -88,9 +88,43 @@ header h1 span {
     gap: 6px;
 }
 
-.export-group {
-    display: flex;
-    gap: 4px;
+.export-menu {
+    position: relative;
+}
+
+.export-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 6px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 4px;
+    box-shadow: var(--shadow);
+    z-index: 50;
+    min-width: 140px;
+}
+
+.export-dropdown.hidden {
+    display: none;
+}
+
+.export-dropdown button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.export-dropdown button:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
 }
 
 .social-btn {
@@ -149,6 +183,17 @@ button:hover {
     background: var(--bg-surface);
     color: var(--text-primary);
     border-color: var(--border-hover);
+}
+
+#btn-reset {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+#btn-reset:hover {
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.35);
 }
 
 button.primary {

@@ -99,25 +99,40 @@
         const overlay = document.getElementById('upload-overlay');
         const dropZone = document.getElementById('upload-drop-zone');
         const fileInput = document.getElementById('upload-input');
+        const folderInput = document.getElementById('upload-folder-input');
         const browseLink = document.getElementById('upload-browse');
+        const browseFolderLink = document.getElementById('upload-browse-folder');
         const submitBtn = document.getElementById('upload-submit');
-        const closeBtn = document.getElementById('upload-close');
-
-        // Show/hide overlay
+        // Show overlay
         document.getElementById('btn-upload').addEventListener('click', () => {
             overlay.classList.remove('hidden');
         });
-        closeBtn.addEventListener('click', () => {
-            // Only allow close if we have data already
-            if (graphData && graphData.servers.length) {
+
+        // Close overlay with Escape or clicking outside (only if data is already loaded)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !overlay.classList.contains('hidden')) {
+                if (graphData && graphData.servers.length) {
+                    overlay.classList.add('hidden');
+                }
+            }
+        });
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay && graphData && graphData.servers.length) {
                 overlay.classList.add('hidden');
             }
         });
 
-        // Browse link
+        // Browse files link
         browseLink.addEventListener('click', (e) => {
             e.preventDefault();
             fileInput.click();
+        });
+
+        // Browse folder link
+        browseFolderLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            folderInput.click();
         });
 
         // Drop zone click
@@ -138,13 +153,19 @@
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
-            addFiles(Array.from(e.dataTransfer.files));
+            handleDrop(e.dataTransfer);
         });
 
         // File input change
         fileInput.addEventListener('change', () => {
             addFiles(Array.from(fileInput.files));
             fileInput.value = '';
+        });
+
+        // Folder input change
+        folderInput.addEventListener('change', () => {
+            addFolderFiles(Array.from(folderInput.files));
+            folderInput.value = '';
         });
 
         // Submit
@@ -177,6 +198,109 @@
                 submitBtn.textContent = 'Parse & Visualize';
             }
         });
+    }
+
+    function handleDrop(dataTransfer) {
+        const items = dataTransfer.items;
+        if (!items) {
+            addFiles(Array.from(dataTransfer.files));
+            return;
+        }
+
+        const entries = [];
+        for (let i = 0; i < items.length; i++) {
+            const entry = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+            if (entry) entries.push(entry);
+        }
+
+        // Check if any entry is a directory
+        const hasDir = entries.some(e => e.isDirectory);
+        if (!hasDir) {
+            addFiles(Array.from(dataTransfer.files));
+            return;
+        }
+
+        // Traverse directories and collect files with paths
+        const filePromises = [];
+        entries.forEach(entry => {
+            filePromises.push(traverseEntry(entry, ''));
+        });
+
+        Promise.all(filePromises).then(results => {
+            const allFiles = results.flat();
+            addFolderFiles(allFiles);
+        });
+    }
+
+    function traverseEntry(entry, basePath) {
+        return new Promise((resolve) => {
+            if (entry.isFile) {
+                entry.file(file => {
+                    // Attach the relative path so addFolderFiles can derive server name
+                    file._relativePath = basePath ? basePath + '/' + file.name : file.name;
+                    resolve([file]);
+                });
+            } else if (entry.isDirectory) {
+                const reader = entry.createReader();
+                const allEntries = [];
+
+                // readEntries may not return all entries at once, so read in batches
+                function readBatch() {
+                    reader.readEntries(batch => {
+                        if (batch.length === 0) {
+                            const subPromises = allEntries.map(sub =>
+                                traverseEntry(sub, basePath ? basePath + '/' + entry.name : entry.name)
+                            );
+                            Promise.all(subPromises).then(results => resolve(results.flat()));
+                        } else {
+                            allEntries.push(...batch);
+                            readBatch();
+                        }
+                    });
+                }
+                readBatch();
+            } else {
+                resolve([]);
+            }
+        });
+    }
+
+    function addFolderFiles(files) {
+        // Filter for .conf files
+        const confFiles = files.filter(f => {
+            const name = f.name || '';
+            return name.endsWith('.conf') || name.endsWith('.txt');
+        });
+
+        if (!confFiles.length) {
+            alert('No .conf files found in the selected folder.');
+            return;
+        }
+
+        // Group by derived server name
+        confFiles.forEach(file => {
+            const relPath = file.webkitRelativePath || file._relativePath || file.name;
+            const parts = relPath.split('/').filter(Boolean);
+
+            let serverName;
+            if (parts.length >= 2) {
+                // e.g. "server1/named.conf" → "server1"
+                // e.g. "configs/server1/named.conf" → "server1" (parent of file)
+                serverName = parts[parts.length - 2];
+            } else {
+                // Single file with no directory — derive from filename
+                serverName = file.name.replace(/\.(conf|txt)$/i, '');
+                if (serverName === 'named') serverName = `server${uploadedFiles.length + 1}`;
+            }
+
+            // Avoid duplicate server names by checking existing entries
+            const existing = uploadedFiles.find(e => e.serverName === serverName);
+            if (!existing) {
+                uploadedFiles.push({ file, serverName });
+            }
+        });
+
+        renderFileList();
     }
 
     function addFiles(files) {
@@ -228,31 +352,61 @@
     }
 
     function setupButtons() {
-        document.getElementById('btn-reparse').addEventListener('click', async () => {
+        document.getElementById('btn-reset').addEventListener('click', async () => {
+            if (!confirm('Reset visualization and clear all uploaded data?')) return;
             try {
-                const resp = await fetch('/api/parse', { method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: '{}',
-                });
-                const result = await resp.json();
-                if (result.status === 'ok') {
-                    await loadGraph();
-                } else {
-                    alert('Parse error: ' + (result.error || 'Unknown error'));
-                }
+                await fetch('/api/reset', { method: 'POST' });
             } catch (err) {
-                alert('Failed to re-parse: ' + err.message);
+                // Ignore — we clear frontend state regardless
             }
+            graphData = null;
+            uploadedFiles = [];
+            // Clear graph SVG
+            const svg = document.getElementById('graph-svg');
+            svg.innerHTML = '';
+            Graph.init('#graph-svg', {
+                onNodeClick: showNodeDetail,
+                onLinkClick: showLinkDetail,
+            });
+            // Clear sidebar filters
+            document.getElementById('server-filters').innerHTML = '';
+            document.getElementById('zone-search').value = '';
+            // Clear file list in upload modal
+            document.getElementById('upload-file-list').innerHTML = '';
+            document.getElementById('upload-submit').disabled = true;
+            // Hide detail panel
+            document.getElementById('detail-panel').classList.add('hidden');
+            // Show upload overlay
+            document.getElementById('upload-overlay').classList.remove('hidden');
+        });
+
+        // Export dropdown
+        const exportBtn = document.getElementById('btn-export');
+        const exportDropdown = document.getElementById('export-dropdown');
+
+        exportBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            exportDropdown.classList.toggle('hidden');
+        });
+
+        document.addEventListener('click', () => {
+            exportDropdown.classList.add('hidden');
+        });
+
+        exportDropdown.addEventListener('click', (e) => {
+            e.stopPropagation();
         });
 
         document.getElementById('btn-export-svg').addEventListener('click', () => {
             const svgEl = Graph.getSvgElement();
             if (svgEl) Export.downloadSvg(svgEl);
+            exportDropdown.classList.add('hidden');
         });
 
         document.getElementById('btn-export-png').addEventListener('click', () => {
             const svgEl = Graph.getSvgElement();
             if (svgEl) Export.downloadPng(svgEl);
+            exportDropdown.classList.add('hidden');
         });
 
         document.getElementById('detail-close').addEventListener('click', () => {

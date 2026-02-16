@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
@@ -101,6 +102,21 @@ def parse_configs():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/api/reset", methods=["POST"])
+def reset():
+    """Clear all parsed data and clean up temp upload directory."""
+    upload_dir = current_app.config.get("UPLOAD_DIR")
+    if upload_dir and os.path.isdir(upload_dir):
+        shutil.rmtree(upload_dir, ignore_errors=True)
+
+    current_app.config.pop("CONFIG_PATH", None)
+    current_app.config.pop("UPLOAD_DIR", None)
+    current_app.config.pop("SERVERS", None)
+    current_app.config.pop("GRAPH_DATA", None)
+
+    return jsonify({"status": "ok"})
 
 
 @api_bp.route("/api/upload", methods=["POST"])

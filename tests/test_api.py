@@ -1,11 +1,13 @@
 """Tests for the Flask API."""
 
+import io
 import os
 import json
 import pytest
 from namedviz.app import create_app
 
 SAMPLE_CONFIGS = os.path.join(os.path.dirname(__file__), "..", "sample_configs")
+CONFDATA = os.path.join(os.path.dirname(__file__), "confdata")
 
 
 @pytest.fixture
@@ -97,3 +99,44 @@ def test_reparse(client):
     data = json.loads(resp.data)
     assert data["status"] == "ok"
     assert len(data["servers"]) == 3
+
+
+def test_reset(client):
+    # Verify data exists before reset
+    resp = client.get("/api/graph")
+    data = json.loads(resp.data)
+    assert len(data["servers"]) > 0
+
+    # Reset
+    resp = client.post("/api/reset")
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    assert data["status"] == "ok"
+
+    # Verify graph is now empty
+    resp = client.get("/api/graph")
+    data = json.loads(resp.data)
+    assert data["servers"] == []
+    assert data["nodes"] == []
+    assert data["links"] == []
+
+
+def test_upload_configs(client):
+    # Reset first to start clean
+    client.post("/api/reset")
+
+    # Read a fixture config file
+    conf_path = os.path.join(CONFDATA, "basic", "named.conf")
+    with open(conf_path, "rb") as f:
+        conf_content = f.read()
+
+    # Upload as multipart form data with server name as field name
+    data = {
+        "testserver": (io.BytesIO(conf_content), "named.conf"),
+    }
+    resp = client.post("/api/upload", data=data, content_type="multipart/form-data")
+    assert resp.status_code == 200
+    result = json.loads(resp.data)
+    assert result["status"] == "ok"
+    assert "testserver" in result["servers"]
+    assert result["node_count"] > 0

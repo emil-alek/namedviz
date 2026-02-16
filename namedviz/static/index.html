@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>namedviz</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230f0f1a'/><circle cx='10' cy='16' r='4' fill='%236c63ff'/><circle cx='22' cy='10' r='3' fill='%2322c997'/><circle cx='22' cy='22' r='3' fill='%23f5a623'/><line x1='13' y1='14' x2='19' y2='11' stroke='%235b8af5' stroke-width='1.5'/><line x1='13' y1='18' x2='19' y2='21' stroke='%235b8af5' stroke-width='1.5'/></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,10 +17,13 @@
             <h1><span>named</span>viz</h1>
             <div class="header-actions">
                 <button id="btn-upload" title="Upload config files">Upload Configs</button>
-                <button id="btn-reparse" title="Re-parse configs">Re-parse</button>
-                <div class="export-group">
-                    <button id="btn-export-svg">SVG</button>
-                    <button id="btn-export-png">PNG</button>
+                <button id="btn-reset" title="Reset and start over">Reset</button>
+                <div class="export-menu">
+                    <button id="btn-export" title="Export diagram">Export</button>
+                    <div id="export-dropdown" class="export-dropdown hidden">
+                        <button id="btn-export-svg">Export SVG</button>
+                        <button id="btn-export-png">Export PNG</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -66,13 +70,13 @@
 
     <div id="upload-overlay" class="upload-overlay">
         <div class="upload-modal">
-            <button id="upload-close" class="upload-close">&times;</button>
             <h2>Upload named.conf Files</h2>
-            <p>Add one file per server. The server name is taken from the name you assign below.</p>
+            <p>Upload individual files or a folder. Server names are derived from folder names or can be edited below.</p>
             <div id="upload-file-list" class="upload-file-list"></div>
             <div class="upload-drop-zone" id="upload-drop-zone">
                 <input type="file" id="upload-input" multiple accept=".conf,.txt,*" hidden>
-                <p>Drag & drop named.conf files here, or <a href="#" id="upload-browse">browse</a></p>
+                <input type="file" id="upload-folder-input" webkitdirectory hidden>
+                <p>Drag & drop files or folders here, or <a href="#" id="upload-browse">browse files</a> / <a href="#" id="upload-browse-folder">browse folder</a></p>
             </div>
             <button id="upload-submit" class="upload-submit" disabled>Parse & Visualize</button>
         </div>
@@ -107,7 +111,9 @@
                 <div class="modal-disclaimer">
                     <h3>Privacy / Disclaimer</h3>
                     <p>
-                        All analysis is performed locally in your browser. Your data is never uploaded or stored.
+                        Uploaded files are stored temporarily on the server for parsing and are removed when you click Reset. No data is sent to third parties.
+                    </p>
+                    <p>
                         While we strive for 100% accuracy, always verify results before implementation.
                         Use at your own risk.
                     </p>
