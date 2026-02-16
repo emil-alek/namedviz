@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:www.zytrax.com)",
+      "WebFetch(domain:bind9.readthedocs.io)",
+      "WebFetch(domain:zytrax.com)",
+      "Bash(pip install:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

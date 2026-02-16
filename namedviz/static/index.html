@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>namedviz</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1><span>named</span>viz</h1>
+            <div class="header-actions">
+                <button id="btn-upload" title="Upload config files">Upload Configs</button>
+                <button id="btn-reparse" title="Re-parse configs">Re-parse</button>
+                <div class="export-group">
+                    <button id="btn-export-svg">SVG</button>
+                    <button id="btn-export-png">PNG</button>
+                </div>
+            </div>
+        </div>
+        <div class="header-right">
+            <a href="https://github.com/emil-alek" target="_blank" rel="noopener" class="social-btn" title="GitHub">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            </a>
+            <a href="https://linkedin.com/in/emilalek" target="_blank" rel="noopener" class="social-btn" title="LinkedIn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+            </a>
+            <button id="btn-about" class="icon-btn" title="About namedviz">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <aside class="sidebar">
+            <section class="filter-section">
+                <h3>Relationship Types</h3>
+                <label><input type="checkbox" data-rel="master_slave" checked> Master/Slave</label>
+                <label><input type="checkbox" data-rel="also_notify" checked> Also Notify</label>
+                <label><input type="checkbox" data-rel="allow_transfer" checked> Allow Transfer</label>
+                <label><input type="checkbox" data-rel="forward" checked> Forward</label>
+            </section>
+
+            <section class="filter-section">
+                <h3>Servers</h3>
+                <div id="server-filters"></div>
+            </section>
+
+            <section class="filter-section">
+                <h3>Zone Search</h3>
+                <input type="text" id="zone-search" placeholder="Filter zones...">
+            </section>
+        </aside>
+
+        <main class="graph-area">
+            <svg id="graph-svg"></svg>
+            <div id="legend"></div>
+            <div id="tooltip" class="tooltip"></div>
+        </main>
+    </div>
+
+    <div id="upload-overlay" class="upload-overlay">
+        <div class="upload-modal">
+            <button id="upload-close" class="upload-close">&times;</button>
+            <h2>Upload named.conf Files</h2>
+            <p>Add one file per server. The server name is taken from the name you assign below.</p>
+            <div id="upload-file-list" class="upload-file-list"></div>
+            <div class="upload-drop-zone" id="upload-drop-zone">
+                <input type="file" id="upload-input" multiple accept=".conf,.txt,*" hidden>
+                <p>Drag & drop named.conf files here, or <a href="#" id="upload-browse">browse</a></p>
+            </div>
+            <button id="upload-submit" class="upload-submit" disabled>Parse & Visualize</button>
+        </div>
+    </div>
+
+    <div id="about-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button id="about-close" class="modal-close">&times;</button>
+            <h2>About namedviz</h2>
+            <div class="modal-body">
+                <p>
+                    <strong>namedviz</strong> is a visual analysis tool for BIND DNS infrastructure. It parses
+                    <code>named.conf</code> configuration files from multiple DNS servers and generates an
+                    interactive force-directed graph showing the relationships between them.
+                </p>
+                <h3>What it shows</h3>
+                <ul>
+                    <li><strong>Master / Slave</strong> replication relationships between servers</li>
+                    <li><strong>Also-Notify</strong> targets that receive zone change notifications</li>
+                    <li><strong>Allow-Transfer</strong> permissions for zone transfers (AXFR/IXFR)</li>
+                    <li><strong>Forward</strong> zones delegated to external resolvers</li>
+                </ul>
+                <h3>How to use</h3>
+                <ul>
+                    <li>Upload one <code>named.conf</code> file per DNS server</li>
+                    <li>Assign a name to each server (e.g. ns1, ns2)</li>
+                    <li>Click <strong>Parse & Visualize</strong> to generate the diagram</li>
+                    <li>Hover over nodes and edges for details, click for full info</li>
+                    <li>Use sidebar filters to focus on specific relationships or servers</li>
+                    <li>Export the diagram as SVG or PNG</li>
+                </ul>
+                <div class="modal-disclaimer">
+                    <h3>Privacy / Disclaimer</h3>
+                    <p>
+                        All analysis is performed locally in your browser. Your data is never uploaded or stored.
+                        While we strive for 100% accuracy, always verify results before implementation.
+                        Use at your own risk.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="detail-panel" class="detail-panel hidden">
+        <button id="detail-close">&times;</button>
+        <div id="detail-content"></div>
+    </div>
+
+    <script src="/static/js/graph.js"></script>
+    <script src="/static/js/legend.js"></script>
+    <script src="/static/js/export.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

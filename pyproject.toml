@@ -1,0 +1,17 @@
+[project]
+name = "namedviz"
+version = "0.1.0"
+description = "Visualize BIND named.conf server relationships"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=3.0",
+    "pyparsing>=3.1",
+]
+
+[tool.setuptools.packages.find]
+include = ["namedviz*"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
