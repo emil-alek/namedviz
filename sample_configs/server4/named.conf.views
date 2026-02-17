@@ -11,5 +11,5 @@ view "external" {
     recursion no;
 
     // Nested include for public-facing zone declarations
-    include "/etc/bind/zones/named.conf.external-zones";
+    include "named.conf.external-zones";
 };

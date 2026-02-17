@@ -104,6 +104,9 @@ def _resolve_includes(
             # e.g. "/etc/bind/zones/named.conf.internal-zones" tries
             # "zones/named.conf.internal-zones" relative to root_dir.
             inc_path = _find_by_suffix(original_inc_path, root_dir)
+        if not (inc_path and os.path.isfile(inc_path)):
+            # Last resort: recursive basename search in root_dir
+            inc_path = _find_recursive(original_inc_path, root_dir)
         if inc_path and os.path.isfile(inc_path):
             logs.append({"level": "info", "message": f"Resolved include: {original_inc_path}"})
             lines.append(_resolve_includes(inc_path, root_dir, seen, logs))
@@ -113,6 +116,15 @@ def _resolve_includes(
 
     lines.append(content[pos:])
     return "".join(lines)
+
+
+def _find_recursive(inc_path: str, root_dir: str) -> str | None:
+    """Search root_dir recursively for a file matching the basename."""
+    target = os.path.basename(inc_path)
+    for dirpath, _, filenames in os.walk(root_dir):
+        if target in filenames:
+            return os.path.join(dirpath, target)
+    return None
 
 
 def _find_by_suffix(inc_path: str, root_dir: str) -> str | None:
