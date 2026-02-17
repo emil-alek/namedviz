@@ -7,6 +7,7 @@ const Graph = (() => {
         also_notify: '#f5a623',
         allow_transfer: '#22c997',
         forward: '#b07ae8',
+        peer: '#f06292',
     };
 
     const ZONE_TYPE_COLORS = {

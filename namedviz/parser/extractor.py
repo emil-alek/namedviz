@@ -21,7 +21,7 @@ def _extract_from_results(
     view_also_notify: list[str] | None = None,
     view_allow_transfer: list[str] | None = None,
     view_forwarders: list[str] | None = None,
-):
+):  
     """Recursively extract data from parse results."""
     for item in results:
         name = item.getName() if hasattr(item, "getName") else ""
@@ -175,16 +175,16 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
 
     for server in servers:
         for zone in server.zones:
-            # Slave -> Master relationships
+            # Master → Slave relationships (arrow = direction of authority / data flow)
             if zone.zone_type in ("slave", "secondary"):
                 for ip in zone.masters:
                     # Try to resolve IP to a known server that masters this zone
-                    target = master_zones.get(zone.name)
-                    if target is None:
-                        target = _resolve_ip(ip, servers, server_names, ip_to_server)
+                    master = master_zones.get(zone.name)
+                    if master is None:
+                        master = _resolve_ip(ip, servers, server_names, ip_to_server)
                     relationships.append(Relationship(
-                        source=server.name,
-                        target=target,
+                        source=master,
+                        target=server.name,
                         rel_type="master_slave",
                         zone_name=zone.name,
                     ))
@@ -227,24 +227,21 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
                         zone_name=zone.name,
                     ))
 
-    # View-level server statements → master_slave relationships
-    # Arrow direction = authority / data flow: master → slave
+    # View-level server statements → peer relationships
     for server in servers:
         for view_name, server_ips in server.view_server_ips.items():
-            # Find master zones in this view on this server
-            view_master_zones = [
-                z for z in server.zones
-                if z.view == view_name and z.zone_type in ("master", "primary")
-            ]
             for ip in server_ips:
-                slave_name = _resolve_ip(ip, servers, server_names, ip_to_server)
-                for zone in view_master_zones:
-                    relationships.append(Relationship(
-                        source=server.name,
-                        target=slave_name,
-                        rel_type="master_slave",
-                        zone_name=zone.name,
-                    ))
+                peer_name = _resolve_ip(ip, servers, server_names, ip_to_server)
+                relationships.append(Relationship(
+                    source=server.name,
+                    target=peer_name,
+                    rel_type="peer",
+                    zone_name="",
+                ))
+
+    # Drop self-referential relationships (e.g. slave zone whose master IP
+    # resolves back to the same server via listen-on)
+    relationships = [r for r in relationships if r.source != r.target]
 
     return relationships
 

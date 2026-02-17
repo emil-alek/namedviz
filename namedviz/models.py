@@ -32,7 +32,7 @@ class ServerConfig:
 class Relationship:
     source: str
     target: str
-    rel_type: str  # master_slave / also_notify / allow_transfer / forward
+    rel_type: str  # master_slave / also_notify / allow_transfer / forward / peer
     zone_name: str
 
 

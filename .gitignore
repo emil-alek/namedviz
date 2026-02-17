@@ -11,3 +11,4 @@ venv/
 CLAUDE.md
 PROJECT.md
 .claude/
+logs/

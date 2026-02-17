@@ -853,6 +853,12 @@ button.primary:hover {
     stroke-width: 1.5px;
 }
 
+.link-peer {
+    stroke: #f06292;
+    stroke-width: 1.5px;
+    stroke-dasharray: 4 2;
+}
+
 /* ---- Log panel ---- */
 .log-panel {
     position: fixed;

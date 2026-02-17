@@ -7,6 +7,7 @@ const Legend = (() => {
         { type: 'also_notify', label: 'Also Notify', color: '#f5a623', dash: '6 3' },
         { type: 'allow_transfer', label: 'Allow Transfer', color: '#22c997', dash: '2 3' },
         { type: 'forward', label: 'Forward', color: '#b07ae8', dash: '' },
+        { type: 'peer', label: 'Peer', color: '#f06292', dash: '4 2' },
     ];
 
     const NODE_ITEMS = [

@@ -103,8 +103,8 @@ def test_resolve_relationships_master_slave():
     rels = resolve_relationships([server1, server2])
     master_slave = [r for r in rels if r.rel_type == "master_slave"]
     assert len(master_slave) == 1
-    assert master_slave[0].source == "server2"
-    assert master_slave[0].target == "server1"  # resolved via zone name
+    assert master_slave[0].source == "server1"  # master (direction of authority)
+    assert master_slave[0].target == "server2"  # slave
 
 
 def test_resolve_relationships_forward():
@@ -179,12 +179,12 @@ def test_resolve_relationships_with_listen_on():
 
     rels = resolve_relationships([server1, server2])
 
-    # All targets should be server names, not raw IPs
-    targets = {r.target for r in rels}
-    assert "10.0.0.1" not in targets
-    assert "10.0.0.2" not in targets
-    assert "server1" in targets
-    assert "server2" in targets
+    # All endpoints should be server names, not raw IPs
+    endpoints = {r.source for r in rels} | {r.target for r in rels}
+    assert "10.0.0.1" not in endpoints
+    assert "10.0.0.2" not in endpoints
+    assert "server1" in endpoints
+    assert "server2" in endpoints
 
 
 def test_extract_view_level_also_notify():
@@ -246,10 +246,7 @@ def test_extract_view_server_ips():
 
 
 def test_resolve_relationships_view_servers():
-    """View-level server IPs should generate master_slave relationships for master zones.
-
-    Arrow direction = authority/data flow: master → slave.
-    """
+    """View-level server IPs should generate peer relationships (one per IP)."""
     master = ServerConfig(
         name="master-server",
         listen_on=["10.0.0.1"],
@@ -265,18 +262,16 @@ def test_resolve_relationships_view_servers():
     slave2 = ServerConfig(name="slave2", listen_on=["10.0.0.3"])
 
     rels = resolve_relationships([master, slave1, slave2])
-    ms_rels = [r for r in rels if r.rel_type == "master_slave"]
+    peer_rels = [r for r in rels if r.rel_type == "peer"]
 
-    # 2 server IPs × 2 master zones = 4 relationships
-    assert len(ms_rels) == 4
-    # Source is master (direction of authority), target is slave
-    assert all(r.source == "master-server" for r in ms_rels)
-    # Targets should be resolved to slave names
-    targets = {r.target for r in ms_rels}
+    # 2 server IPs = 2 peer relationships (not multiplied by zones)
+    assert len(peer_rels) == 2
+    assert all(r.source == "master-server" for r in peer_rels)
+    # Targets should be resolved to server names
+    targets = {r.target for r in peer_rels}
     assert targets == {"slave1", "slave2"}
-    # Both zones covered
-    zone_names = {r.zone_name for r in ms_rels}
-    assert zone_names == {"example.com", "example.org"}
+    # Peer relationships are not zone-specific
+    assert all(r.zone_name == "" for r in peer_rels)
 
 
 def test_extract_all_sample_configs():
