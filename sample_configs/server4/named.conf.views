@@ -19,7 +19,7 @@ view "internal" {
 view "external" {
     match-clients { any; };
     recursion no;
-
+	server 15.15.15.15;
     // Nested include for public-facing zone declarations
     include "named.conf.external-zones";
 };

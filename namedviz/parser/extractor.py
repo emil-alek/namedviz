@@ -187,6 +187,7 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
                         target=server.name,
                         rel_type="master_slave",
                         zone_name=zone.name,
+                        view_name=zone.view or "",
                     ))
 
             # Also-notify relationships (master notifies others)
@@ -199,6 +200,7 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
                         target=target,
                         rel_type="also_notify",
                         zone_name=zone.name,
+                        view_name=zone.view or "",
                     ))
 
             # Allow-transfer relationships
@@ -213,6 +215,7 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
                         target=target,
                         rel_type="allow_transfer",
                         zone_name=zone.name,
+                        view_name=zone.view or "",
                     ))
 
             # Forward relationships
@@ -225,6 +228,7 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
                         target=target,
                         rel_type="forward",
                         zone_name=zone.name,
+                        view_name=zone.view or "",
                     ))
 
     # View-level server statements → peer relationships
@@ -237,6 +241,7 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
                     target=peer_name,
                     rel_type="peer",
                     zone_name="",
+                    view_name=view_name,
                 ))
 
     # Drop self-referential relationships (e.g. slave zone whose master IP

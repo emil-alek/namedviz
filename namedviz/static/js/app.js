@@ -423,8 +423,14 @@
             exportDropdown.classList.add('hidden');
         });
 
+        const detailPanel = document.getElementById('detail-panel');
         document.getElementById('detail-close').addEventListener('click', () => {
-            document.getElementById('detail-panel').classList.add('hidden');
+            detailPanel.classList.add('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if (!detailPanel.classList.contains('hidden') && !detailPanel.contains(e.target)) {
+                detailPanel.classList.add('hidden');
+            }
         });
 
         // About modal
@@ -447,17 +453,36 @@
         try {
             const resp = await fetch(`/api/server/${encodeURIComponent(node.id)}`);
             if (!resp.ok) {
-                content.innerHTML = `<h2>${node.id}</h2><p>External IP address</p>`;
+                let extHtml = `<h2>${node.id}</h2><p>External IP address</p>`;
+                if (node.views && node.views.length) {
+                    extHtml += `<p><strong>Views:</strong> ${node.views.join(', ')}</p>`;
+                }
+                content.innerHTML = extHtml;
                 panel.classList.remove('hidden');
                 return;
             }
             const data = await resp.json();
 
-            let html = `<h2>${data.name}</h2>`;
+            const viewCounts = {};
+            (data.zones || []).forEach(z => {
+                const v = z.view || '(no view)';
+                viewCounts[v] = (viewCounts[v] || 0) + 1;
+            });
+            const zoneParts = Object.entries(viewCounts).map(([v, n]) => `${v}: ${n}`);
+            const zoneLabel = zoneParts.length
+                ? `${data.zone_count} zone(s) &mdash; ${zoneParts.join(', ')}`
+                : `${data.zone_count} zone(s)`;
+
+            let html = `<div class="detail-header">`;
+            html += `<h2>${data.name}</h2>`;
             if (data.listen_on && data.listen_on.length) {
-                html += `<p><strong>Listen-on:</strong> <code>${data.listen_on.join(', ')}</code></p>`;
+                html += `<span class="detail-badge">${data.listen_on.join(', ')}</span>`;
             }
-            html += `<p>${data.zone_count} zone(s)</p>`;
+            html += `<span class="detail-badge">${zoneLabel}</span>`;
+            if (data.global_forwarders && data.global_forwarders.length) {
+                html += `<span class="detail-badge">Fwd: ${data.global_forwarders.join(', ')}</span>`;
+            }
+            html += `</div>`;
 
             if (data.zones && data.zones.length) {
                 html += '<table><tr><th>Zone</th><th>Type</th><th>View</th><th>Masters</th></tr>';
@@ -470,10 +495,6 @@
                     </tr>`;
                 });
                 html += '</table>';
-            }
-
-            if (data.global_forwarders.length) {
-                html += `<p>Global forwarders: ${data.global_forwarders.join(', ')}</p>`;
             }
 
             content.innerHTML = html;

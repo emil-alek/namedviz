@@ -197,7 +197,7 @@ const Graph = (() => {
             .on('mouseover', (event, d) => _showTooltip(event, _linkTooltipHtml(d)))
             .on('mousemove', (event) => _moveTooltip(event))
             .on('mouseout', () => _hideTooltip())
-            .on('click', (event, d) => { if (onLinkClick) onLinkClick(d); });
+            .on('click', (event, d) => { event.stopPropagation(); if (onLinkClick) onLinkClick(d); });
 
         // Nodes — all <g> groups
         nodeElements = container.selectAll('.node')
@@ -225,7 +225,7 @@ const Graph = (() => {
                 _clearHighlight();
                 _hideTooltip();
             })
-            .on('click', (event, d) => { if (onNodeClick) onNodeClick(d); })
+            .on('click', (event, d) => { event.stopPropagation(); if (onNodeClick) onNodeClick(d); })
             .call(d3.drag()
                 .on('start', _dragStarted)
                 .on('drag', _dragged)
@@ -333,7 +333,11 @@ const Graph = (() => {
             html += '</ul>';
             return html;
         }
-        return `<h4>${d.id}</h4><div class="tooltip-type">External IP</div>`;
+        let html = `<h4>${d.id}</h4><div class="tooltip-type">External IP</div>`;
+        if (d.views && d.views.length) {
+            html += `<div class="tooltip-views">Views: ${d.views.join(', ')}</div>`;
+        }
+        return html;
     }
 
     function _linkTooltipHtml(d) {

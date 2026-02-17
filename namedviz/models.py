@@ -34,6 +34,7 @@ class Relationship:
     target: str
     rel_type: str  # master_slave / also_notify / allow_transfer / forward / peer
     zone_name: str
+    view_name: str = ""
 
 
 @dataclass

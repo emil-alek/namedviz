@@ -31,12 +31,22 @@ def build_graph(servers: list[ServerConfig]) -> GraphData:
             "listen_on": server.listen_on,
         })
 
+    # Collect views referencing each external node
+    ext_views: dict[str, set[str]] = {}
+    for rel in relationships:
+        if rel.view_name:
+            if rel.target in external_nodes:
+                ext_views.setdefault(rel.target, set()).add(rel.view_name)
+            if rel.source in external_nodes:
+                ext_views.setdefault(rel.source, set()).add(rel.view_name)
+
     for ext in sorted(external_nodes):
         nodes.append({
             "id": ext,
             "type": "external",
             "zone_count": 0,
             "zones": [],
+            "views": sorted(ext_views.get(ext, [])),
         })
 
     # Aggregate links: one per (source, target, rel_type)
