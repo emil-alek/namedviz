@@ -25,6 +25,7 @@ class ServerConfig:
     global_forwarders: list[str] = field(default_factory=list)
     global_also_notify: list[str] = field(default_factory=list)
     global_allow_transfer: list[str] = field(default_factory=list)
+    view_server_ips: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass

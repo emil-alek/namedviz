@@ -87,8 +87,9 @@ def test_load_and_parse_with_missing_include():
     assert zones[0]["zone_name"] == "example.com"
     # Should have a warning about the missing include
     warn_logs = [w for w in warnings if w["level"] == "warn"]
-    assert len(warn_logs) == 1
-    assert "missing-zones.conf" in warn_logs[0]["message"]
+    include_warns = [w for w in warn_logs if "Include file not found" in w["message"]]
+    assert len(include_warns) == 1
+    assert "missing-zones.conf" in include_warns[0]["message"]
 
 
 def test_discover_sample_configs():

@@ -12,9 +12,23 @@ def build_graph(servers: list[ServerConfig]) -> GraphData:
 
     server_names = {s.name for s in servers}
 
+    # Collect IPs declared as view-level servers (these are slave servers)
+    view_server_ids: set[str] = set()
+    for server in servers:
+        for ips in server.view_server_ips.values():
+            for ip in ips:
+                # Resolve IP to server name if possible
+                resolved = ip
+                for s in servers:
+                    if ip in s.listen_on:
+                        resolved = s.name
+                        break
+                if resolved not in server_names:
+                    view_server_ids.add(resolved)
+
     # Collect all node IDs (servers + external IPs)
-    all_targets = {r.target for r in relationships}
-    external_nodes = all_targets - server_names
+    all_endpoints = {r.target for r in relationships} | {r.source for r in relationships}
+    external_nodes = all_endpoints - server_names - view_server_ids
 
     # Build nodes
     nodes = []
@@ -29,6 +43,18 @@ def build_graph(servers: list[ServerConfig]) -> GraphData:
             "zone_counts": _zone_type_counts(server),
             "zones": [_zone_summary(z) for z in server.zones],
             "listen_on": server.listen_on,
+        })
+
+    # View-level server IPs as slave server nodes
+    for vs in sorted(view_server_ids):
+        nodes.append({
+            "id": vs,
+            "type": "server",
+            "role": "slave",
+            "zone_count": 0,
+            "zone_counts": {},
+            "zones": [],
+            "listen_on": [vs],
         })
 
     for ext in sorted(external_nodes):

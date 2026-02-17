@@ -888,6 +888,12 @@ button.primary:hover {
     flex-shrink: 0;
 }
 
+.header-actions {
+    display: flex;
+    gap: 8px; /* Adds consistent spacing between the right-side elements */
+    align-items: center;
+}
+
 .log-toggle {
     background: none;
     border: none;
@@ -913,6 +919,23 @@ button.primary:hover {
     font-weight: 700;
     padding: 1px 6px;
     border-radius: 8px;
+}
+
+.log-export-btn {
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.log-export-btn:hover {
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+    background: var(--bg-elevated);
 }
 
 .log-verbosity {

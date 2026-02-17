@@ -10,6 +10,22 @@ import pyparsing as pp
 
 pp.ParserElement.enable_packrat()
 
+# ---------- unknown-statement warning collection ----------
+_unknown_warnings: list[str] = []
+
+
+def get_unknown_warnings() -> list[str]:
+    """Return and clear warnings for unknown statements encountered during parsing."""
+    warnings = list(_unknown_warnings)
+    _unknown_warnings.clear()
+    return warnings
+
+
+def _on_unknown(tokens):
+    _unknown_warnings.append(str(tokens[0]))
+    return []
+
+
 # ---------- primitives ----------
 SEMI = pp.Suppress(pp.Literal(";"))
 LBRACE = pp.Suppress(pp.Literal("{"))
@@ -74,13 +90,16 @@ allow_transfer_stmt = _ip_list("allow-transfer")
 
 # Catch-all for unknown statements inside blocks
 # Matches: keyword value* ;  OR  keyword value* { ... } ;?
+# Captures the keyword for warning reporting, then suppresses the rest.
 _nested_braces = pp.nested_expr("{", "}")
-unknown_stmt = pp.Suppress(
-    bare_word
-    + pp.ZeroOrMore(value | pp.Regex(r'!'))
-    + (
-        (LBRACE + pp.SkipTo("}") + RBRACE + pp.Optional(pp.Literal(";")))
-        | SEMI
+unknown_stmt = (
+    bare_word.copy().add_parse_action(_on_unknown)
+    + pp.Suppress(
+        pp.ZeroOrMore(value | pp.Regex(r'!'))
+        + (
+            (LBRACE + pp.SkipTo("}") + RBRACE + pp.Optional(pp.Literal(";")))
+            | SEMI
+        )
     )
 )
 
@@ -154,7 +173,21 @@ acl_block = pp.Group(
 
 # ---------- view block ----------
 
-view_body_stmt = zone_block | unknown_stmt
+server_stmt = pp.Group(
+    pp.Suppress(pp.Keyword("server"))
+    + ip_addr("ip")
+    + pp.Optional(pp.Suppress(LBRACE + pp.SkipTo("}") + RBRACE))
+    + SEMI
+)("view_servers*")
+
+view_body_stmt = (
+    zone_block
+    | also_notify_stmt
+    | allow_transfer_stmt
+    | forwarders_stmt
+    | server_stmt
+    | unknown_stmt
+)
 
 view_block = pp.Group(
     pp.Suppress(pp.Keyword("view"))
@@ -177,15 +210,18 @@ include_directive = pp.Group(
 # ---------- top-level ----------
 
 # Skip unknown top-level blocks (logging, controls, etc.)
-unknown_top_block = pp.Suppress(
-    bare_word
-    + pp.ZeroOrMore(value)
-    + pp.nested_expr("{", "}")
-    + pp.Optional(pp.Literal(";"))
+unknown_top_block = (
+    bare_word.copy().add_parse_action(_on_unknown)
+    + pp.Suppress(
+        pp.ZeroOrMore(value)
+        + pp.nested_expr("{", "}")
+        + pp.Optional(pp.Literal(";"))
+    )
 )
 
-unknown_top_stmt = pp.Suppress(
-    bare_word + pp.OneOrMore(value) + SEMI
+unknown_top_stmt = (
+    bare_word.copy().add_parse_action(_on_unknown)
+    + pp.Suppress(pp.OneOrMore(value) + SEMI)
 )
 
 top_level_stmt = (
@@ -204,4 +240,5 @@ named_conf.ignore(comment)
 
 def parse_named_conf(text: str) -> pp.ParseResults:
     """Parse a named.conf file and return structured results."""
+    _unknown_warnings.clear()
     return named_conf.parse_string(text, parse_all=True)

@@ -6,11 +6,28 @@ import os
 import shutil
 import tempfile
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
 api_bp = Blueprint("api", __name__)
+
+
+def _save_logs(logs):
+    """Write log entries to a timestamped file in the logs/ directory."""
+    if not logs:
+        return
+    log_dir = Path(__file__).resolve().parent.parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    log_file = log_dir / f"{timestamp}.log"
+    lines = []
+    for entry in logs:
+        level = entry.get("level", "info").upper()
+        message = entry.get("message", str(entry))
+        lines.append(f"[{level}] {message}")
+    log_file.write_text("\n".join(lines), encoding="utf-8")
 
 
 @api_bp.route("/")
@@ -94,6 +111,7 @@ def parse_configs():
         from .app import _parse_configs
         current_app.config["CONFIG_PATH"] = config_path
         warnings = _parse_configs(current_app)
+        _save_logs(warnings)
         graph_data = current_app.config.get("GRAPH_DATA")
         return jsonify({
             "status": "ok",
@@ -177,6 +195,7 @@ def upload_configs():
         from .app import _parse_configs
         current_app.config["CONFIG_PATH"] = upload_dir
         warnings = _parse_configs(current_app)
+        _save_logs(warnings)
         graph_data = current_app.config.get("GRAPH_DATA")
         return jsonify({
             "status": "ok",

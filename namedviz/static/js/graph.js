@@ -23,7 +23,7 @@ const Graph = (() => {
     let onLinkClick = null;
 
     const pie = d3.pie().sort(null).value(d => d.value);
-    const nodeRadius = d => d.type === 'server' ? Math.max(8, 4 + d.zone_count * 1.5) : 5;
+    const nodeRadius = d => d.type === 'server' ? 14 : 5;
 
     function init(svgSelector, callbacks = {}) {
         onNodeClick = callbacks.onNodeClick || null;

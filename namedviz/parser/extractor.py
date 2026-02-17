@@ -14,7 +14,14 @@ def extract_server_config(server_name: str, parse_results) -> ServerConfig:
     return config
 
 
-def _extract_from_results(config: ServerConfig, results, view_name: str | None):
+def _extract_from_results(
+    config: ServerConfig,
+    results,
+    view_name: str | None,
+    view_also_notify: list[str] | None = None,
+    view_allow_transfer: list[str] | None = None,
+    view_forwarders: list[str] | None = None,
+):
     """Recursively extract data from parse results."""
     for item in results:
         name = item.getName() if hasattr(item, "getName") else ""
@@ -22,6 +29,13 @@ def _extract_from_results(config: ServerConfig, results, view_name: str | None):
         if name == "zone":
             zone = _extract_zone(config.name, item, view_name)
             if zone:
+                # Apply view-level fallbacks (zone > view > global)
+                if not zone.also_notify and view_also_notify:
+                    zone.also_notify = list(view_also_notify)
+                if not zone.allow_transfer and view_allow_transfer:
+                    zone.allow_transfer = list(view_allow_transfer)
+                if not zone.forwarders and view_forwarders:
+                    zone.forwarders = list(view_forwarders)
                 config.zones.append(zone)
 
         elif name == "options":
@@ -35,7 +49,20 @@ def _extract_from_results(config: ServerConfig, results, view_name: str | None):
 
         elif name == "view":
             vname = item.get("view_name", "")
-            _extract_from_results(config, item, view_name=vname)
+            # Extract view-level options
+            v_also_notify = list(item.get("also_notify", []))
+            v_allow_transfer = list(item.get("allow_transfer", []))
+            v_forwarders = list(item.get("forwarders", []))
+            # Extract view-level server statements
+            v_servers = [s["ip"] for s in item.get("view_servers", [])]
+            if v_servers and vname:
+                config.view_server_ips[vname] = v_servers
+            _extract_from_results(
+                config, item, view_name=vname,
+                view_also_notify=v_also_notify or None,
+                view_allow_transfer=v_allow_transfer or None,
+                view_forwarders=v_forwarders or None,
+            )
 
 
 def _extract_zone(server_name: str, item, view_name: str | None) -> Zone | None:
@@ -197,6 +224,25 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
                         source=server.name,
                         target=target,
                         rel_type="forward",
+                        zone_name=zone.name,
+                    ))
+
+    # View-level server statements → master_slave relationships
+    # Arrow direction = authority / data flow: master → slave
+    for server in servers:
+        for view_name, server_ips in server.view_server_ips.items():
+            # Find master zones in this view on this server
+            view_master_zones = [
+                z for z in server.zones
+                if z.view == view_name and z.zone_type in ("master", "primary")
+            ]
+            for ip in server_ips:
+                slave_name = _resolve_ip(ip, servers, server_names, ip_to_server)
+                for zone in view_master_zones:
+                    relationships.append(Relationship(
+                        source=server.name,
+                        target=slave_name,
+                        rel_type="master_slave",
                         zone_name=zone.name,
                     ))
 

@@ -187,6 +187,98 @@ def test_resolve_relationships_with_listen_on():
     assert "server2" in targets
 
 
+def test_extract_view_level_also_notify():
+    """View-level also-notify should apply as fallback to zones in that view."""
+    results, _ = load_and_parse(os.path.join(CONFDATA, "view_with_options", "named.conf"))
+    config = extract_server_config("test-server", results)
+
+    by_name_view = {(z.name, z.view): z for z in config.zones}
+
+    # Zone without its own also-notify inherits from view
+    zone1 = by_name_view[("example.com", "internal")]
+    assert "10.0.0.5" in zone1.also_notify
+    assert "10.0.0.6" in zone1.allow_transfer
+
+    # Zone with its own also-notify keeps its own, not the view's
+    zone2 = by_name_view[("example.org", "internal")]
+    assert zone2.also_notify == ["10.0.0.7"]
+    assert "10.0.0.5" not in zone2.also_notify
+
+    # Zone in external view (no view-level options) has empty lists
+    zone3 = by_name_view[("example.com", "external")]
+    assert zone3.also_notify == []
+    assert zone3.allow_transfer == []
+
+
+def test_unknown_stmt_warnings():
+    """Unknown statements should produce warning log entries."""
+    results, logs = load_and_parse(os.path.join(CONFDATA, "view_with_options", "named.conf"))
+
+    warn_msgs = [l["message"] for l in logs if l["level"] == "warn"]
+    # match-clients and recursion are unknown statements inside views
+    unknown_keywords = [m for m in warn_msgs if "Unrecognized statement skipped:" in m]
+    assert len(unknown_keywords) > 0
+    # match-clients should be among them
+    assert any("match-clients" in m for m in unknown_keywords)
+    assert any("recursion" in m for m in unknown_keywords)
+
+
+def test_extract_view_server_ips():
+    """View-level server statements should be captured in view_server_ips."""
+    from namedviz.parser.grammar import parse_named_conf
+
+    text = '''
+    view "internal" {
+        server 13.13.13.13;
+        server 14.14.14.14;
+
+        zone "example.com" {
+            type master;
+            file "db.example.com";
+        };
+    };
+    '''
+    results = parse_named_conf(text)
+    config = extract_server_config("master-server", results)
+
+    assert "internal" in config.view_server_ips
+    assert config.view_server_ips["internal"] == ["13.13.13.13", "14.14.14.14"]
+
+
+def test_resolve_relationships_view_servers():
+    """View-level server IPs should generate master_slave relationships for master zones.
+
+    Arrow direction = authority/data flow: master → slave.
+    """
+    master = ServerConfig(
+        name="master-server",
+        listen_on=["10.0.0.1"],
+        zones=[
+            Zone(name="example.com", zone_type="master", server_name="master-server",
+                 view="internal"),
+            Zone(name="example.org", zone_type="master", server_name="master-server",
+                 view="internal"),
+        ],
+        view_server_ips={"internal": ["10.0.0.2", "10.0.0.3"]},
+    )
+    slave1 = ServerConfig(name="slave1", listen_on=["10.0.0.2"])
+    slave2 = ServerConfig(name="slave2", listen_on=["10.0.0.3"])
+
+    rels = resolve_relationships([master, slave1, slave2])
+    ms_rels = [r for r in rels if r.rel_type == "master_slave"]
+
+    # 2 server IPs × 2 master zones = 4 relationships
+    assert len(ms_rels) == 4
+    # Source is master (direction of authority), target is slave
+    assert all(r.source == "master-server" for r in ms_rels)
+    # Targets should be resolved to slave names
+    targets = {r.target for r in ms_rels}
+    assert targets == {"slave1", "slave2"}
+    # Both zones covered
+    zone_names = {r.zone_name for r in ms_rels}
+    assert zone_names == {"example.com", "example.org"}
+
+
 def test_extract_all_sample_configs():
     sample_path = os.path.join(os.path.dirname(__file__), "..", "sample_configs")
     if not os.path.isdir(sample_path):

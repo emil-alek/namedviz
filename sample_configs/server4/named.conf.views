@@ -1,8 +1,18 @@
 view "internal" {
     match-clients { "trusted_lan"; };
+	also-notify { 12.12.12.12; };
     recursion yes;
-
+	
+	server 13.13.13.13;
+	server 14.14.14.14;
     // Nested include for internal zone declarations
+	
+	zone "test.corp.local" {
+    type master;
+    file "/var/cache/bind/db.dev.corp.local";
+};
+	
+	
     include "/etc/bind/zones/named.conf.internal-zones";
 };
 
