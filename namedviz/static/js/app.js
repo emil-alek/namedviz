@@ -5,6 +5,7 @@
     let graphData = null;
     let uploadedFiles = []; // [{files: [File, ...], serverName}]
     let allLogs = []; // [{level, message}]
+    let zoneSuggestionIndex = -1;
 
     async function init() {
         Graph.init('#graph-svg', {
@@ -94,7 +95,110 @@
         document.querySelectorAll('[data-rel]').forEach(cb => {
             cb.addEventListener('change', applyFiltersAndRender);
         });
-        document.getElementById('zone-search').addEventListener('input', applyFiltersAndRender);
+        const zoneInput = document.getElementById('zone-search');
+        const zoneClear = document.getElementById('zone-clear');
+        zoneInput.addEventListener('input', () => {
+            applyFiltersAndRender();
+            updateZoneSuggestions();
+            zoneClear.classList.toggle('hidden', !zoneInput.value);
+        });
+        zoneInput.addEventListener('focus', updateZoneSuggestions);
+        zoneInput.addEventListener('keydown', (e) => {
+            const dropdown = document.getElementById('zone-suggestions');
+            if (dropdown.classList.contains('hidden')) return;
+            const items = dropdown.querySelectorAll('.zone-suggestion-item');
+            if (!items.length) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                zoneSuggestionIndex = Math.min(zoneSuggestionIndex + 1, items.length - 1);
+                items.forEach((el, i) => el.classList.toggle('highlighted', i === zoneSuggestionIndex));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                zoneSuggestionIndex = Math.max(zoneSuggestionIndex - 1, -1);
+                items.forEach((el, i) => el.classList.toggle('highlighted', i === zoneSuggestionIndex));
+            } else if (e.key === 'Enter' && zoneSuggestionIndex >= 0) {
+                e.preventDefault();
+                const zone = items[zoneSuggestionIndex].dataset.zone;
+                zoneInput.value = zone;
+                zoneClear.classList.remove('hidden');
+                dropdown.classList.add('hidden');
+                zoneSuggestionIndex = -1;
+                applyFiltersAndRender();
+            } else if (e.key === 'Escape') {
+                dropdown.classList.add('hidden');
+                zoneSuggestionIndex = -1;
+            }
+        });
+        zoneInput.addEventListener('blur', () => {
+            // Delay so mousedown on a suggestion item fires before we hide
+            setTimeout(() => {
+                document.getElementById('zone-suggestions').classList.add('hidden');
+            }, 150);
+        });
+        zoneClear.addEventListener('click', () => {
+            zoneInput.value = '';
+            zoneClear.classList.add('hidden');
+            document.getElementById('zone-suggestions').classList.add('hidden');
+            applyFiltersAndRender();
+            zoneInput.focus();
+        });
+    }
+
+    function updateZoneSuggestions() {
+        const input = document.getElementById('zone-search');
+        const dropdown = document.getElementById('zone-suggestions');
+        const q = input.value.trim().toLowerCase();
+
+        if (!q || !graphData || !graphData.zones || !graphData.zones.length) {
+            dropdown.classList.add('hidden');
+            return;
+        }
+
+        // Deduplicate by (name, view) and filter by query
+        const seen = new Set();
+        const matches = [];
+        graphData.zones.forEach(z => {
+            const key = z.name + '|' + (z.view || '');
+            if (!seen.has(key) && z.name.toLowerCase().includes(q)) {
+                seen.add(key);
+                matches.push(z);
+            }
+        });
+
+        if (!matches.length) {
+            dropdown.classList.add('hidden');
+            return;
+        }
+
+        // Position dropdown below input using fixed coords
+        const rect = input.getBoundingClientRect();
+        dropdown.style.top = (rect.bottom + 2) + 'px';
+        dropdown.style.left = rect.left + 'px';
+        dropdown.style.width = rect.width + 'px';
+
+        zoneSuggestionIndex = -1;
+        dropdown.innerHTML = '';
+        matches.slice(0, 25).forEach(z => {
+            const item = document.createElement('div');
+            item.className = 'zone-suggestion-item';
+            item.dataset.zone = z.name;
+            item.appendChild(document.createTextNode(z.name));
+            if (z.view) {
+                const viewSpan = document.createElement('span');
+                viewSpan.className = 'zone-view';
+                viewSpan.textContent = ' (' + z.view + ')';
+                item.appendChild(viewSpan);
+            }
+            item.addEventListener('mousedown', (e) => {
+                e.preventDefault(); // keep focus on input
+                input.value = z.name;
+                dropdown.classList.add('hidden');
+                applyFiltersAndRender();
+            });
+            dropdown.appendChild(item);
+        });
+        dropdown.classList.remove('hidden');
     }
 
     function setupUpload() {
@@ -381,6 +485,8 @@
             // Clear sidebar filters
             document.getElementById('server-filters').innerHTML = '';
             document.getElementById('zone-search').value = '';
+            document.getElementById('zone-clear').classList.add('hidden');
+            document.getElementById('zone-suggestions').classList.add('hidden');
             // Clear file list in upload modal
             document.getElementById('upload-file-list').innerHTML = '';
             document.getElementById('upload-submit').disabled = true;
@@ -480,7 +586,7 @@
             }
             html += `<span class="detail-badge">${zoneLabel}</span>`;
             if (data.global_forwarders && data.global_forwarders.length) {
-                html += `<span class="detail-badge">Fwd: ${data.global_forwarders.join(', ')}</span>`;
+                html += `<span class="detail-badge">Global Forwarding: ${data.global_forwarders.join(', ')}</span>`;
             }
             html += `</div>`;
 

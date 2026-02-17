@@ -302,6 +302,120 @@ button.primary:hover {
     color: var(--text-muted);
 }
 
+/* ---- Zone search wrap + clear button ---- */
+.zone-search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.zone-search-wrap input[type="text"] {
+    padding-right: 26px; /* room for the × button */
+}
+
+.zone-clear {
+    position: absolute;
+    right: 6px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+    display: flex;
+    align-items: center;
+}
+
+.zone-clear:hover {
+    color: var(--text-primary);
+}
+
+/* ---- Info icon tooltip ---- */
+.info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-hover);
+    color: var(--text-secondary);
+    font-size: 8px;
+    font-weight: 600;
+    text-transform: none;
+    cursor: default;
+    position: relative;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.info-icon::after {
+    content: attr(data-tooltip);
+    position: fixed;
+    left: calc(230px + 8px); /* sidebar width + gap */
+    top: auto;
+    width: 220px;
+    background: var(--bg-tertiary, rgba(255,255,255,0.06));
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.5;
+    padding: 2px 10px;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition);
+    white-space: normal;
+    z-index: 600;
+}
+
+.info-icon:hover::after {
+    opacity: 1;
+}
+
+/* ---- Zone search suggestions ---- */
+.zone-suggestions {
+    position: fixed;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-sm);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 500;
+    box-shadow: var(--shadow);
+}
+
+.zone-suggestions.hidden {
+    display: none;
+}
+
+.zone-clear.hidden {
+    display: none;
+}
+
+.zone-suggestion-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.zone-suggestion-item:hover,
+.zone-suggestion-item.highlighted {
+    background: var(--bg-primary);
+}
+
+.zone-suggestion-item .zone-view {
+    color: var(--text-secondary);
+}
+
 /* ---- Graph area ---- */
 .graph-area {
     flex: 1;

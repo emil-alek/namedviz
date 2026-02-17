@@ -57,8 +57,12 @@
             </section>
 
             <section class="filter-section">
-                <h3>Zone Search</h3>
-                <input type="text" id="zone-search" placeholder="Filter zones...">
+                <h3>Zone Search <span class="info-icon" data-tooltip="Filter graph links by zone name. Only connections that carry a matching zone will be shown. Click a suggestion to apply.">?</span></h3>
+                <div class="zone-search-wrap">
+                    <input type="text" id="zone-search" placeholder="Filter zones..." autocomplete="off">
+                    <button id="zone-clear" class="zone-clear hidden" title="Clear">&times;</button>
+                </div>
+                <div id="zone-suggestions" class="zone-suggestions hidden"></div>
             </section>
         </aside>
 
