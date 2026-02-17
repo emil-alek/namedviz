@@ -73,6 +73,61 @@ def test_build_graph_zone_summaries():
     assert "example.org" in zone_names
 
 
+def test_build_graph_listen_on_in_node():
+    server1 = ServerConfig(name="server1", listen_on=["10.0.0.1"], zones=[
+        Zone(name="example.com", zone_type="master", server_name="server1"),
+    ])
+
+    graph = build_graph([server1])
+
+    server_node = next(n for n in graph.nodes if n["id"] == "server1")
+    assert server_node["listen_on"] == ["10.0.0.1"]
+
+
+def test_build_graph_ip_resolution_reduces_external():
+    """When listen-on IPs resolve, external nodes should disappear."""
+    server1 = ServerConfig(name="server1", listen_on=["10.0.0.1"], zones=[
+        Zone(name="example.com", zone_type="master", server_name="server1",
+             also_notify=["10.0.0.2"], allow_transfer=["10.0.0.2"]),
+    ])
+    server2 = ServerConfig(name="server2", listen_on=["10.0.0.2"], zones=[
+        Zone(name="example.com", zone_type="slave", server_name="server2",
+             masters=["10.0.0.1"]),
+    ])
+
+    graph = build_graph([server1, server2])
+
+    external = [n for n in graph.nodes if n["type"] == "external"]
+    assert len(external) == 0
+
+    # All links should be between servers, not IPs
+    for link in graph.links:
+        assert link["source"] in ("server1", "server2")
+        assert link["target"] in ("server1", "server2")
+
+
+def test_build_graph_zone_counts():
+    server1 = ServerConfig(name="s1", zones=[
+        Zone(name="a.com", zone_type="master", server_name="s1"),
+        Zone(name="b.com", zone_type="master", server_name="s1"),
+        Zone(name="c.com", zone_type="slave", server_name="s1", masters=["10.0.0.5"]),
+    ])
+    graph = build_graph([server1])
+    node = next(n for n in graph.nodes if n["id"] == "s1")
+    assert node["zone_counts"] == {"master": 2, "slave": 1}
+
+
+def test_build_graph_zone_counts_normalization():
+    """primary→master and secondary→slave normalization."""
+    server1 = ServerConfig(name="s1", zones=[
+        Zone(name="a.com", zone_type="primary", server_name="s1"),
+        Zone(name="b.com", zone_type="secondary", server_name="s1", masters=["10.0.0.5"]),
+    ])
+    graph = build_graph([server1])
+    node = next(n for n in graph.nodes if n["id"] == "s1")
+    assert node["zone_counts"] == {"master": 1, "slave": 1}
+
+
 def test_build_graph_from_sample_configs():
     from namedviz.parser.extractor import extract_all
 
@@ -80,10 +135,10 @@ def test_build_graph_from_sample_configs():
     if not os.path.isdir(sample_path):
         pytest.skip("sample_configs not found")
 
-    servers = extract_all(sample_path)
+    servers, _ = extract_all(sample_path)
     graph = build_graph(servers)
 
-    assert len(graph.servers) == 3
+    assert len(graph.servers) == 4
     assert len(graph.nodes) > 3  # servers + external IPs
     assert len(graph.links) > 0
 

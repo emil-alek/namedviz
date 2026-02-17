@@ -382,6 +382,13 @@ button.primary:hover {
     margin-bottom: 6px;
 }
 
+.tooltip .tooltip-ips {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-family: "SF Mono", "Consolas", monospace;
+    margin-bottom: 6px;
+}
+
 .tooltip ul {
     list-style: none;
     padding: 0;
@@ -783,39 +790,18 @@ button.primary:hover {
     filter: brightness(1.25) drop-shadow(0 0 8px rgba(108, 99, 255, 0.4));
 }
 
-.node-role-master {
-    fill: var(--master-color);
-    stroke: var(--master-stroke);
-    stroke-width: 2.5px;
-}
-
-.node-role-slave {
-    fill: var(--slave-color);
-    stroke: var(--slave-stroke);
-    stroke-width: 2px;
-}
-
-.node-role-mixed {
-    fill: var(--mixed-color);
-    stroke: var(--mixed-stroke);
-    stroke-width: 2.5px;
-}
-
-.node-role-other {
-    fill: #5a5a7a;
-    stroke: #7a7a9a;
-    stroke-width: 1.5px;
-}
-
 .node-external {
-    fill: var(--external-color);
-    stroke: var(--external-stroke);
-    stroke-width: 1px;
     cursor: pointer;
 }
 
 .node-external:hover {
     filter: brightness(1.3);
+}
+
+.node-external-rect {
+    fill: var(--external-color);
+    stroke: var(--external-stroke);
+    stroke-width: 1px;
 }
 
 .node-label {
@@ -865,6 +851,115 @@ button.primary:hover {
 .link-forward {
     stroke: #b07ae8;
     stroke-width: 1.5px;
+}
+
+/* ---- Log panel ---- */
+.log-panel {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    width: 380px;
+    max-height: 240px;
+    background: rgba(22, 22, 37, 0.92);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow);
+    z-index: 150;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.log-panel.hidden {
+    display: none;
+}
+
+.log-panel.collapsed .log-body {
+    display: none;
+}
+
+.log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.log-toggle {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.log-toggle:hover {
+    color: var(--text-primary);
+    background: none;
+}
+
+.log-toggle span {
+    background: rgba(245, 166, 35, 0.2);
+    color: var(--mixed-color);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+
+.log-verbosity {
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color var(--transition);
+}
+
+.log-verbosity:hover {
+    border-color: var(--border-hover);
+}
+
+.log-verbosity:focus {
+    border-color: var(--accent);
+}
+
+.log-body {
+    overflow-y: auto;
+    padding: 8px 12px;
+    flex: 1;
+}
+
+.log-entry {
+    font-size: 11px;
+    font-family: "SF Mono", "Consolas", monospace;
+    color: var(--text-secondary);
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    line-height: 1.5;
+}
+
+.log-level-warn {
+    color: var(--mixed-color);
+}
+
+.log-level-info {
+    color: var(--text-muted);
+}
+
+.log-entry:last-child {
+    border-bottom: none;
 }
 
 /* ---- Scrollbar ---- */

@@ -112,10 +112,24 @@ options_forwarders = _ip_list("forwarders")
 options_also_notify = _ip_list("also-notify")
 options_allow_transfer = _ip_list("allow-transfer")
 
+options_listen_on_v6 = pp.Group(
+    pp.Suppress(pp.Keyword("listen-on-v6"))
+    + pp.Optional(pp.Suppress(pp.Keyword("port") + value))
+    + LBRACE + pp.ZeroOrMore((ip_addr | value) + SEMI) + RBRACE + SEMI
+)("listen_on_v6")
+
+options_listen_on = pp.Group(
+    pp.Suppress(pp.Keyword("listen-on"))
+    + pp.Optional(pp.Suppress(pp.Keyword("port") + value))
+    + LBRACE + pp.ZeroOrMore((ip_addr | value) + SEMI) + RBRACE + SEMI
+)("listen_on")
+
 options_body_stmt = (
     options_forwarders
     | options_also_notify
     | options_allow_transfer
+    | options_listen_on_v6
+    | options_listen_on
     | unknown_stmt
 )
 

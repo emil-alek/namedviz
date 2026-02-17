@@ -26,7 +26,9 @@ def build_graph(servers: list[ServerConfig]) -> GraphData:
             "type": "server",
             "role": role,
             "zone_count": zone_count,
+            "zone_counts": _zone_type_counts(server),
             "zones": [_zone_summary(z) for z in server.zones],
+            "listen_on": server.listen_on,
         })
 
     for ext in sorted(external_nodes):
@@ -66,6 +68,19 @@ def build_graph(servers: list[ServerConfig]) -> GraphData:
         zones=zone_list,
         servers=[s.name for s in servers],
     )
+
+
+def _zone_type_counts(server: ServerConfig) -> dict[str, int]:
+    """Count zones by type, normalizing primary→master and secondary→slave."""
+    counts: dict[str, int] = {}
+    for z in server.zones:
+        zt = z.zone_type
+        if zt == "primary":
+            zt = "master"
+        if zt == "secondary":
+            zt = "slave"
+        counts[zt] = counts.get(zt, 0) + 1
+    return counts
 
 
 def _server_role(server: ServerConfig) -> str:

@@ -20,6 +20,7 @@ class Zone:
 class ServerConfig:
     name: str
     zones: list[Zone] = field(default_factory=list)
+    listen_on: list[str] = field(default_factory=list)
     acls: dict[str, list[str]] = field(default_factory=dict)
     global_forwarders: list[str] = field(default_factory=list)
     global_also_notify: list[str] = field(default_factory=list)

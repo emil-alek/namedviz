@@ -9,18 +9,21 @@ const Graph = (() => {
         forward: '#b07ae8',
     };
 
-    const ROLE_COLORS = {
+    const ZONE_TYPE_COLORS = {
         master: '#6c63ff',
         slave: '#22c997',
-        mixed: '#f5a623',
-        other: '#5a5a7a',
+        forward: '#b07ae8',
     };
+    const ZONE_TYPE_FALLBACK = '#5a5a7a';
 
     let svg, container, simulation;
     let linkElements, nodeElements, labelElements;
     let graphData = null;
     let onNodeClick = null;
     let onLinkClick = null;
+
+    const pie = d3.pie().sort(null).value(d => d.value);
+    const nodeRadius = d => d.type === 'server' ? Math.max(8, 4 + d.zone_count * 1.5) : 5;
 
     function init(svgSelector, callbacks = {}) {
         onNodeClick = callbacks.onNodeClick || null;
@@ -35,7 +38,7 @@ const Graph = (() => {
             defs.append('marker')
                 .attr('id', `arrow-${type}`)
                 .attr('viewBox', '0 -5 10 10')
-                .attr('refX', 20)
+                .attr('refX', 10)
                 .attr('refY', 0)
                 .attr('markerWidth', 8)
                 .attr('markerHeight', 8)
@@ -56,6 +59,86 @@ const Graph = (() => {
         svg.call(zoom);
 
         return { svg, container };
+    }
+
+    function _renderDonut(g, d) {
+        const r = nodeRadius(d);
+        const counts = d.zone_counts || {};
+        const entries = Object.entries(counts);
+
+        if (entries.length === 0) {
+            // No zones: render a thin gray ring
+            const arcGen = d3.arc().innerRadius(r * 0.55).outerRadius(r);
+            g.append('path')
+                .attr('d', arcGen({ startAngle: 0, endAngle: 2 * Math.PI }))
+                .attr('fill', ZONE_TYPE_FALLBACK)
+                .attr('stroke', '#7a7a9a')
+                .attr('stroke-width', 1);
+            return;
+        }
+
+        const pieData = pie(entries.map(([key, value]) => ({ key, value })));
+        const arcGen = d3.arc().innerRadius(r * 0.55).outerRadius(r);
+
+        g.selectAll('path')
+            .data(pieData)
+            .join('path')
+            .attr('d', arcGen)
+            .attr('fill', seg => ZONE_TYPE_COLORS[seg.data.key] || ZONE_TYPE_FALLBACK)
+            .attr('stroke', 'rgba(0,0,0,0.3)')
+            .attr('stroke-width', 0.5);
+    }
+
+    function _computeCurveOffsets(links) {
+        // Group links by unordered node pair
+        const pairGroups = {};
+        links.forEach((l, i) => {
+            const sId = l.source.id || l.source;
+            const tId = l.target.id || l.target;
+            // Canonical key: alphabetically smaller first
+            const key = sId < tId ? `${sId}|${tId}` : `${tId}|${sId}`;
+            if (!pairGroups[key]) pairGroups[key] = [];
+            pairGroups[key].push(i);
+            l._pairReversed = sId > tId;
+        });
+
+        links.forEach(l => { l._curveOffset = 0; });
+        Object.values(pairGroups).forEach(indices => {
+            const n = indices.length;
+            if (n <= 1) return;
+            indices.forEach((idx, j) => {
+                const base = (j - (n - 1) / 2) * 30;
+                links[idx]._curveOffset = links[idx]._pairReversed ? -base : base;
+            });
+        });
+    }
+
+    function _linkPath(d) {
+        const sx = d.source.x, sy = d.source.y;
+        const tx = d.target.x, ty = d.target.y;
+        const dx = tx - sx, dy = ty - sy;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const targetR = nodeRadius(d.target) + 2;
+
+        if (d._curveOffset === 0) {
+            // Straight line
+            const ex = tx - (dx / dist) * targetR;
+            const ey = ty - (dy / dist) * targetR;
+            return `M${sx},${sy}L${ex},${ey}`;
+        }
+
+        // Perpendicular normal
+        const nx = -dy / dist, ny = dx / dist;
+        const cx = (sx + tx) / 2 + nx * d._curveOffset;
+        const cy = (sy + ty) / 2 + ny * d._curveOffset;
+
+        // Trim endpoint along tangent at t=1 (from control to target)
+        const tdx = tx - cx, tdy = ty - cy;
+        const tdist = Math.sqrt(tdx * tdx + tdy * tdy) || 1;
+        const ex = tx - (tdx / tdist) * targetR;
+        const ey = ty - (tdy / tdist) * targetR;
+
+        return `M${sx},${sy}Q${cx},${cy} ${ex},${ey}`;
     }
 
     function render(data, filters = {}) {
@@ -100,10 +183,13 @@ const Graph = (() => {
         const maxCount = Math.max(1, ...links.map(l => l.count));
         const thicknessScale = d3.scaleLinear().domain([1, maxCount]).range([1, 5]);
 
-        // Links
+        // Pre-compute curve offsets for parallel/bidirectional links
+        _computeCurveOffsets(links);
+
+        // Links — <path> elements with Bézier curves
         linkElements = container.selectAll('.link')
             .data(links)
-            .join('line')
+            .join('path')
             .attr('class', d => `link link-${d.rel_type}`)
             .attr('stroke-width', d => thicknessScale(d.count))
             .attr('marker-end', d => `url(#arrow-${d.rel_type})`)
@@ -112,32 +198,21 @@ const Graph = (() => {
             .on('mouseout', () => _hideTooltip())
             .on('click', (event, d) => { if (onLinkClick) onLinkClick(d); });
 
-        // Nodes
-        const nodeRadius = d => d.type === 'server' ? Math.max(8, 4 + d.zone_count * 1.5) : 5;
-
+        // Nodes — all <g> groups
         nodeElements = container.selectAll('.node')
             .data(nodes)
-            .join(enter => {
-                return enter.append(d => {
-                    const el = d.type === 'server'
-                        ? document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-                        : document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                    return el;
-                });
-            })
-            .attr('class', d => {
-                let cls = `node node-${d.type}`;
-                if (d.type === 'server' && d.role) cls += ` node-role-${d.role}`;
-                return cls;
-            })
+            .join('g')
+            .attr('class', d => `node node-${d.type}`)
             .each(function(d) {
-                const el = d3.select(this);
+                const g = d3.select(this);
                 if (d.type === 'server') {
-                    el.attr('r', nodeRadius(d));
+                    _renderDonut(g, d);
                 } else {
                     const s = 10;
-                    el.attr('width', s).attr('height', s)
-                      .attr('x', -s/2).attr('y', -s/2);
+                    g.append('rect')
+                        .attr('width', s).attr('height', s)
+                        .attr('x', -s / 2).attr('y', -s / 2)
+                        .attr('class', 'node-external-rect');
                 }
             })
             .on('mouseover', (event, d) => {
@@ -175,20 +250,10 @@ const Graph = (() => {
             .force('center', d3.forceCenter(cx, cy))
             .force('collision', d3.forceCollide().radius(d => nodeRadius(d) + 20))
             .on('tick', () => {
-                linkElements
-                    .attr('x1', d => d.source.x)
-                    .attr('y1', d => d.source.y)
-                    .attr('x2', d => d.target.x)
-                    .attr('y2', d => d.target.y);
+                linkElements.attr('d', _linkPath);
 
-                nodeElements.each(function(d) {
-                    const el = d3.select(this);
-                    if (d.type === 'server') {
-                        el.attr('cx', d.x).attr('cy', d.y);
-                    } else {
-                        el.attr('x', d.x - 5).attr('y', d.y - 5);
-                    }
-                });
+                nodeElements
+                    .attr('transform', d => `translate(${d.x},${d.y})`);
 
                 labelElements
                     .attr('x', d => d.x)
@@ -252,17 +317,17 @@ const Graph = (() => {
 
     function _nodeTooltipHtml(d) {
         if (d.type === 'server') {
-            const zones = d.zones || [];
-            const byType = {};
-            zones.forEach(z => {
-                byType[z.type] = (byType[z.type] || 0) + 1;
-            });
+            const counts = d.zone_counts || {};
             const roleLabel = (d.role || 'server').charAt(0).toUpperCase() + (d.role || 'server').slice(1);
-            const roleColor = ROLE_COLORS[d.role] || '#888';
             let html = `<h4>${d.id}</h4>`;
-            html += `<div class="tooltip-type" style="color:${roleColor}">${roleLabel}</div><ul>`;
-            Object.entries(byType).forEach(([t, c]) => {
-                html += `<li>${t}: ${c} zone(s)</li>`;
+            html += `<div class="tooltip-type">${roleLabel}</div>`;
+            if (d.listen_on && d.listen_on.length) {
+                html += `<div class="tooltip-ips">${d.listen_on.join(', ')}</div>`;
+            }
+            html += '<ul>';
+            Object.entries(counts).forEach(([t, c]) => {
+                const color = ZONE_TYPE_COLORS[t] || ZONE_TYPE_FALLBACK;
+                html += `<li><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px"></span>${t}: ${c} zone(s)</li>`;
             });
             html += '</ul>';
             return html;
@@ -286,5 +351,5 @@ const Graph = (() => {
         return svg ? svg.node() : null;
     }
 
-    return { init, render, getSvgElement, REL_COLORS, ROLE_COLORS };
+    return { init, render, getSvgElement, REL_COLORS, ZONE_TYPE_COLORS };
 })();

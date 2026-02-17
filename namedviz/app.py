@@ -29,17 +29,18 @@ def create_app(config_path: str | None = None) -> Flask:
     return app
 
 
-def _parse_configs(app: Flask):
-    """Parse configs and store results in app config."""
+def _parse_configs(app: Flask) -> list[str]:
+    """Parse configs and store results in app config. Returns warnings."""
     from .parser.extractor import extract_all
     from .graph import build_graph
 
     config_path = app.config["CONFIG_PATH"]
     if not config_path:
-        return
+        return []
 
-    servers = extract_all(config_path)
+    servers, warnings = extract_all(config_path)
     graph_data = build_graph(servers)
 
     app.config["SERVERS"] = servers
     app.config["GRAPH_DATA"] = graph_data
+    return warnings

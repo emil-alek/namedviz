@@ -46,6 +46,7 @@ def get_server(name):
                     }
                     for z in server.zones
                 ],
+                "listen_on": server.listen_on,
                 "acls": server.acls,
                 "global_forwarders": server.global_forwarders,
                 "global_also_notify": server.global_also_notify,
@@ -92,13 +93,14 @@ def parse_configs():
     try:
         from .app import _parse_configs
         current_app.config["CONFIG_PATH"] = config_path
-        _parse_configs(current_app)
+        warnings = _parse_configs(current_app)
         graph_data = current_app.config.get("GRAPH_DATA")
         return jsonify({
             "status": "ok",
             "servers": graph_data.servers if graph_data else [],
             "node_count": len(graph_data.nodes) if graph_data else 0,
             "link_count": len(graph_data.links) if graph_data else 0,
+            "logs": warnings,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -134,35 +136,46 @@ def upload_configs():
     upload_dir = tempfile.mkdtemp(prefix="namedviz_")
     current_app.config["UPLOAD_DIR"] = upload_dir
 
-    server_count = 0
+    # Group files by server name
+    server_files: dict[str, list] = {}
+    auto_count = 0
     for field_name, file in request.files.items(multi=True):
-        # Determine server name from the field name or filename
         server_name = field_name
         if server_name.startswith("file") or server_name == "configs":
-            # Generic field name — derive from filename
-            server_name = Path(file.filename).stem
-            # If it's just "named" from named.conf, use parent-like naming
-            if server_name in ("named", "named.conf"):
-                server_name = f"server{server_count + 1}"
+            # Generic field name — derive from filename path
+            # e.g. "server1/named.conf" -> "server1"
+            parts = Path(file.filename).parts
+            if len(parts) >= 2:
+                server_name = parts[-2]
+            else:
+                server_name = Path(file.filename).stem
+                if server_name in ("named", "named.conf"):
+                    auto_count += 1
+                    server_name = f"server{auto_count}"
 
+        server_files.setdefault(server_name, []).append(file)
+
+    if not server_files:
+        return jsonify({"error": "No valid config files found"}), 400
+
+    for server_name, files in server_files.items():
         server_dir = os.path.join(upload_dir, server_name)
         os.makedirs(server_dir, exist_ok=True)
-        file.save(os.path.join(server_dir, "named.conf"))
-        server_count += 1
-
-    if server_count == 0:
-        return jsonify({"error": "No valid config files found"}), 400
+        for file in files:
+            filename = Path(file.filename).name
+            file.save(os.path.join(server_dir, filename))
 
     try:
         from .app import _parse_configs
         current_app.config["CONFIG_PATH"] = upload_dir
-        _parse_configs(current_app)
+        warnings = _parse_configs(current_app)
         graph_data = current_app.config.get("GRAPH_DATA")
         return jsonify({
             "status": "ok",
             "servers": graph_data.servers if graph_data else [],
             "node_count": len(graph_data.nodes) if graph_data else 0,
             "link_count": len(graph_data.links) if graph_data else 0,
+            "logs": warnings,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

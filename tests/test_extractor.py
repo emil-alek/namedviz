@@ -10,7 +10,7 @@ CONFDATA = os.path.join(os.path.dirname(__file__), "confdata")
 
 
 def test_extract_basic_config():
-    results = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
+    results, _ = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
     config = extract_server_config("test-server", results)
 
     assert config.name == "test-server"
@@ -23,7 +23,7 @@ def test_extract_basic_config():
 
 
 def test_extract_zone_types():
-    results = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
+    results, _ = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
     config = extract_server_config("test-server", results)
 
     by_name = {z.name: z for z in config.zones}
@@ -33,7 +33,7 @@ def test_extract_zone_types():
 
 
 def test_extract_masters_list():
-    results = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
+    results, _ = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
     config = extract_server_config("test-server", results)
 
     slave_zone = next(z for z in config.zones if z.name == "example.org")
@@ -41,7 +41,7 @@ def test_extract_masters_list():
 
 
 def test_extract_also_notify():
-    results = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
+    results, _ = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
     config = extract_server_config("test-server", results)
 
     master_zone = next(z for z in config.zones if z.name == "example.com")
@@ -49,7 +49,7 @@ def test_extract_also_notify():
 
 
 def test_extract_allow_transfer():
-    results = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
+    results, _ = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
     config = extract_server_config("test-server", results)
 
     master_zone = next(z for z in config.zones if z.name == "example.com")
@@ -58,7 +58,7 @@ def test_extract_allow_transfer():
 
 
 def test_extract_global_options():
-    results = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
+    results, _ = load_and_parse(os.path.join(CONFDATA, "basic", "named.conf"))
     config = extract_server_config("test-server", results)
 
     assert "8.8.8.8" in config.global_forwarders
@@ -66,7 +66,7 @@ def test_extract_global_options():
 
 
 def test_extract_views():
-    results = load_and_parse(os.path.join(CONFDATA, "with_views", "named.conf"))
+    results, _ = load_and_parse(os.path.join(CONFDATA, "with_views", "named.conf"))
     config = extract_server_config("test-server", results)
 
     assert len(config.zones) == 2
@@ -76,7 +76,7 @@ def test_extract_views():
 
 
 def test_extract_with_comments():
-    results = load_and_parse(os.path.join(CONFDATA, "with_comments", "named.conf"))
+    results, _ = load_and_parse(os.path.join(CONFDATA, "with_comments", "named.conf"))
     config = extract_server_config("test-server", results)
 
     assert len(config.zones) == 1
@@ -84,7 +84,7 @@ def test_extract_with_comments():
 
 
 def test_extract_skips_logging():
-    results = load_and_parse(os.path.join(CONFDATA, "with_logging", "named.conf"))
+    results, _ = load_and_parse(os.path.join(CONFDATA, "with_logging", "named.conf"))
     config = extract_server_config("test-server", results)
 
     assert len(config.zones) == 1
@@ -119,12 +119,85 @@ def test_resolve_relationships_forward():
     assert fwd[0].target == "203.0.113.10"
 
 
+def test_extract_listen_on():
+    results, _ = load_and_parse(os.path.join(CONFDATA, "views_with_includes", "named.conf"))
+    config = extract_server_config("test-server", results)
+
+    assert "10.0.0.1" in config.listen_on
+
+
+def test_extract_listen_on_filters_special():
+    """listen-on with 'any' should not include 'any' in listen_on list."""
+    from namedviz.parser.grammar import parse_named_conf
+
+    text = '''
+    options {
+        listen-on { any; };
+    };
+    '''
+    results = parse_named_conf(text)
+    config = extract_server_config("test-server", results)
+    assert "any" not in config.listen_on
+
+
+def test_extract_views_with_includes():
+    results, _ = load_and_parse(os.path.join(CONFDATA, "views_with_includes", "named.conf"))
+    config = extract_server_config("test-server", results)
+
+    assert len(config.zones) == 3
+    views = {z.view for z in config.zones}
+    assert "internal" in views
+    assert "external" in views
+
+    # Internal view should have 2 zones
+    internal_zones = [z for z in config.zones if z.view == "internal"]
+    assert len(internal_zones) == 2
+
+    # External view should have 1 zone
+    external_zones = [z for z in config.zones if z.view == "external"]
+    assert len(external_zones) == 1
+
+
+def test_resolve_relationships_with_listen_on():
+    """IPs in listen-on should resolve to the owning server."""
+    server1 = ServerConfig(
+        name="server1",
+        listen_on=["10.0.0.1"],
+        zones=[
+            Zone(name="example.com", zone_type="master", server_name="server1",
+                 also_notify=["10.0.0.2"], allow_transfer=["10.0.0.2"]),
+        ],
+    )
+    server2 = ServerConfig(
+        name="server2",
+        listen_on=["10.0.0.2"],
+        zones=[
+            Zone(name="example.com", zone_type="slave", server_name="server2",
+                 masters=["10.0.0.1"]),
+        ],
+    )
+
+    rels = resolve_relationships([server1, server2])
+
+    # All targets should be server names, not raw IPs
+    targets = {r.target for r in rels}
+    assert "10.0.0.1" not in targets
+    assert "10.0.0.2" not in targets
+    assert "server1" in targets
+    assert "server2" in targets
+
+
 def test_extract_all_sample_configs():
     sample_path = os.path.join(os.path.dirname(__file__), "..", "sample_configs")
     if not os.path.isdir(sample_path):
         pytest.skip("sample_configs not found")
 
-    servers = extract_all(sample_path)
-    assert len(servers) == 3
+    servers, warnings = extract_all(sample_path)
+    assert len(servers) == 4
     names = {s.name for s in servers}
-    assert names == {"server1", "server2", "server3"}
+    assert names == {"server1", "server2", "server3", "server4"}
+
+    # server4 has missing includes — should produce warnings
+    server4_warnings = [w for w in warnings
+                        if w["level"] == "warn" and w["message"].startswith("[server4]")]
+    assert len(server4_warnings) > 0

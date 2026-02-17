@@ -3,7 +3,8 @@
  */
 (function() {
     let graphData = null;
-    let uploadedFiles = []; // [{file, serverName}]
+    let uploadedFiles = []; // [{files: [File, ...], serverName}]
+    let allLogs = []; // [{level, message}]
 
     async function init() {
         Graph.init('#graph-svg', {
@@ -15,6 +16,7 @@
         setupFilters();
         setupButtons();
         setupUpload();
+        setupLogPanel();
 
         await loadGraph();
     }
@@ -176,7 +178,9 @@
 
             const formData = new FormData();
             uploadedFiles.forEach(entry => {
-                formData.append(entry.serverName, entry.file);
+                entry.files.forEach(file => {
+                    formData.append(entry.serverName, file, file.name);
+                });
             });
 
             try {
@@ -187,6 +191,7 @@
                 const result = await resp.json();
                 if (result.status === 'ok') {
                     overlay.classList.add('hidden');
+                    showLogs(result.logs || []);
                     await loadGraph();
                 } else {
                     alert('Parse error: ' + (result.error || 'Unknown error'));
@@ -266,19 +271,14 @@
     }
 
     function addFolderFiles(files) {
-        // Filter for .conf files
-        const confFiles = files.filter(f => {
-            const name = f.name || '';
-            return name.endsWith('.conf') || name.endsWith('.txt');
-        });
-
-        if (!confFiles.length) {
-            alert('No .conf files found in the selected folder.');
+        if (!files.length) {
+            alert('No files found in the selected folder.');
             return;
         }
 
-        // Group by derived server name
-        confFiles.forEach(file => {
+        // Group files by derived server name (parent directory)
+        const groups = {};
+        files.forEach(file => {
             const relPath = file.webkitRelativePath || file._relativePath || file.name;
             const parts = relPath.split('/').filter(Boolean);
 
@@ -289,16 +289,23 @@
                 serverName = parts[parts.length - 2];
             } else {
                 // Single file with no directory — derive from filename
-                serverName = file.name.replace(/\.(conf|txt)$/i, '');
-                if (serverName === 'named') serverName = `server${uploadedFiles.length + 1}`;
+                serverName = file.name.replace(/\.[^.]+$/i, '');
+                if (serverName === 'named') serverName = `server${uploadedFiles.length + Object.keys(groups).length + 1}`;
             }
 
-            // Avoid duplicate server names by checking existing entries
-            const existing = uploadedFiles.find(e => e.serverName === serverName);
-            if (!existing) {
-                uploadedFiles.push({ file, serverName });
-            }
+            if (!groups[serverName]) groups[serverName] = [];
+            groups[serverName].push(file);
         });
+
+        // Merge into uploadedFiles
+        for (const [serverName, groupFiles] of Object.entries(groups)) {
+            const existing = uploadedFiles.find(e => e.serverName === serverName);
+            if (existing) {
+                existing.files.push(...groupFiles);
+            } else {
+                uploadedFiles.push({ files: groupFiles, serverName });
+            }
+        }
 
         renderFileList();
     }
@@ -306,9 +313,9 @@
     function addFiles(files) {
         files.forEach(file => {
             // Derive a default server name from filename
-            let name = file.name.replace(/\.(conf|txt)$/i, '');
+            let name = file.name.replace(/\.[^.]+$/i, '');
             if (name === 'named') name = `server${uploadedFiles.length + 1}`;
-            uploadedFiles.push({ file, serverName: name });
+            uploadedFiles.push({ files: [file], serverName: name });
         });
         renderFileList();
     }
@@ -332,7 +339,9 @@
 
             const fileName = document.createElement('span');
             fileName.className = 'file-name';
-            fileName.textContent = entry.file.name;
+            const names = entry.files.map(f => f.name);
+            fileName.textContent = names.length === 1 ? names[0] : `${names.length} files`;
+            fileName.title = names.join(', ');
 
             const removeBtn = document.createElement('button');
             removeBtn.className = 'file-remove';
@@ -353,7 +362,6 @@
 
     function setupButtons() {
         document.getElementById('btn-reset').addEventListener('click', async () => {
-            if (!confirm('Reset visualization and clear all uploaded data?')) return;
             try {
                 await fetch('/api/reset', { method: 'POST' });
             } catch (err) {
@@ -376,6 +384,10 @@
             document.getElementById('upload-submit').disabled = true;
             // Hide detail panel
             document.getElementById('detail-panel').classList.add('hidden');
+            // Hide log panel and clear logs
+            allLogs = [];
+            const logPanel = document.getElementById('log-panel');
+            if (logPanel) logPanel.classList.add('hidden');
             // Show upload overlay
             document.getElementById('upload-overlay').classList.remove('hidden');
         });
@@ -440,6 +452,9 @@
             const data = await resp.json();
 
             let html = `<h2>${data.name}</h2>`;
+            if (data.listen_on && data.listen_on.length) {
+                html += `<p><strong>Listen-on:</strong> <code>${data.listen_on.join(', ')}</code></p>`;
+            }
             html += `<p>${data.zone_count} zone(s)</p>`;
 
             if (data.zones && data.zones.length) {
@@ -456,7 +471,7 @@
             }
 
             if (data.global_forwarders.length) {
-                html += `<p><strong>Global forwarders:</strong> ${data.global_forwarders.join(', ')}</p>`;
+                html += `<p>Global forwarders: ${data.global_forwarders.join(', ')}</p>`;
             }
 
             content.innerHTML = html;
@@ -484,6 +499,57 @@
 
         content.innerHTML = html;
         panel.classList.remove('hidden');
+    }
+
+    function setupLogPanel() {
+        const panel = document.getElementById('log-panel');
+        if (!panel) return;
+        document.getElementById('log-toggle').addEventListener('click', () => {
+            panel.classList.toggle('collapsed');
+        });
+        document.getElementById('log-verbosity').addEventListener('change', () => {
+            renderLogs();
+        });
+    }
+
+    function showLogs(logs) {
+        allLogs = logs || [];
+        const panel = document.getElementById('log-panel');
+        if (!panel) return;
+
+        if (!allLogs.length) {
+            panel.classList.add('hidden');
+            return;
+        }
+
+        panel.classList.remove('hidden');
+        panel.classList.remove('collapsed');
+        renderLogs();
+    }
+
+    function renderLogs() {
+        const body = document.getElementById('log-body');
+        const count = document.getElementById('log-count');
+        const verbosity = document.getElementById('log-verbosity').value;
+
+        const filtered = allLogs.filter(entry => {
+            if (verbosity === 'warn') return entry.level === 'warn';
+            return true; // 'all'
+        });
+
+        body.innerHTML = '';
+        filtered.forEach(entry => {
+            const div = document.createElement('div');
+            div.className = 'log-entry log-level-' + entry.level;
+            div.textContent = entry.message;
+            body.appendChild(div);
+        });
+        count.textContent = filtered.length;
+
+        // If no entries match current filter, collapse but keep panel visible
+        if (filtered.length === 0) {
+            document.getElementById('log-panel').classList.add('collapsed');
+        }
     }
 
     document.addEventListener('DOMContentLoaded', init);

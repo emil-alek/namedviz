@@ -86,16 +86,35 @@ def _extract_options(config: ServerConfig, item):
     if allow_transfer:
         config.global_allow_transfer = allow_transfer
 
+    for key in ("listen_on", "listen_on_v6"):
+        ips = list(item.get(key, []))
+        config.listen_on.extend(
+            ip for ip in ips if ip not in ("any", "none", "localhost")
+        )
 
-def extract_all(config_path: str) -> list[ServerConfig]:
-    """Discover, parse, and extract all server configs from a path."""
+
+def extract_all(config_path: str) -> tuple[list[ServerConfig], list[dict]]:
+    """Discover, parse, and extract all server configs from a path.
+
+    Returns (servers, logs).  Each log entry is a dict with 'level' and 'message'.
+    """
     configs = discover_configs(config_path)
     servers = []
+    all_logs: list[dict] = []
     for server_name, file_path in configs.items():
-        results = load_and_parse(file_path)
+        results, logs = load_and_parse(file_path)
         server = extract_server_config(server_name, results)
         servers.append(server)
-    return servers
+        for entry in logs:
+            all_logs.append({
+                "level": entry["level"],
+                "message": f"[{server_name}] {entry['message']}",
+            })
+        all_logs.append({
+            "level": "info",
+            "message": f"[{server_name}] Parsed {len(server.zones)} zone(s)",
+        })
+    return servers, all_logs
 
 
 def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
@@ -117,6 +136,13 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
             if zone.zone_type in ("master", "primary"):
                 master_zones[zone.name] = server.name
 
+    # Build IP-to-server map from listen-on declarations
+    ip_to_server: dict[str, str] = {}
+    for server in servers:
+        for ip in server.listen_on:
+            if ip not in ip_to_server:
+                ip_to_server[ip] = server.name
+
     server_names = {s.name for s in servers}
     relationships: list[Relationship] = []
 
@@ -126,7 +152,9 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
             if zone.zone_type in ("slave", "secondary"):
                 for ip in zone.masters:
                     # Try to resolve IP to a known server that masters this zone
-                    target = master_zones.get(zone.name, ip)
+                    target = master_zones.get(zone.name)
+                    if target is None:
+                        target = _resolve_ip(ip, servers, server_names, ip_to_server)
                     relationships.append(Relationship(
                         source=server.name,
                         target=target,
@@ -138,7 +166,7 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
             if zone.zone_type in ("master", "primary"):
                 notify_list = zone.also_notify or server.global_also_notify
                 for ip in notify_list:
-                    target = _resolve_ip(ip, servers, server_names)
+                    target = _resolve_ip(ip, servers, server_names, ip_to_server)
                     relationships.append(Relationship(
                         source=server.name,
                         target=target,
@@ -152,7 +180,7 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
                 for ip in transfer_list:
                     if ip in ("any", "none", "localhost"):
                         continue
-                    target = _resolve_ip(ip, servers, server_names)
+                    target = _resolve_ip(ip, servers, server_names, ip_to_server)
                     relationships.append(Relationship(
                         source=server.name,
                         target=target,
@@ -164,7 +192,7 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
             if zone.zone_type == "forward":
                 fwd_list = zone.forwarders or server.global_forwarders
                 for ip in fwd_list:
-                    target = _resolve_ip(ip, servers, server_names)
+                    target = _resolve_ip(ip, servers, server_names, ip_to_server)
                     relationships.append(Relationship(
                         source=server.name,
                         target=target,
@@ -175,10 +203,11 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
     return relationships
 
 
-def _resolve_ip(ip: str, servers: list[ServerConfig], server_names: set[str]) -> str:
+def _resolve_ip(ip: str, servers: list[ServerConfig], server_names: set[str],
+                ip_to_server: dict[str, str] | None = None) -> str:
     """Try to resolve an IP to a known server name. Return IP if unresolvable."""
-    # If it's already a server name (e.g., ACL reference), return as-is
     if ip in server_names:
         return ip
-    # Otherwise return the raw IP (becomes external node)
+    if ip_to_server and ip in ip_to_server:
+        return ip_to_server[ip]
     return ip

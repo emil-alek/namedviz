@@ -1,0 +1,15 @@
+view "internal" {
+    match-clients { "trusted_lan"; };
+    recursion yes;
+
+    // Nested include for internal zone declarations
+    include "/etc/bind/named.conf.internal-zones";
+};
+
+view "external" {
+    match-clients { any; };
+    recursion no;
+
+    // Nested include for public-facing zone declarations
+    include "/etc/bind/named.conf.external-zones";
+};

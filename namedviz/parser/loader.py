@@ -44,21 +44,32 @@ def discover_configs(config_path: str) -> dict[str, str]:
     return configs
 
 
-def load_and_parse(file_path: str) -> dict:
-    """Load a named.conf, resolve includes, parse, and return results as dict."""
-    text = _resolve_includes(file_path)
+def load_and_parse(file_path: str) -> tuple[dict, list[dict]]:
+    """Load a named.conf, resolve includes, parse, and return (results, logs).
+
+    Each log entry is a dict with 'level' ('info' or 'warn') and 'message'.
+    """
+    logs: list[dict] = []
+    text = _resolve_includes(file_path, logs=logs)
     results = parse_named_conf(text)
-    return results
+    return results, logs
 
 
-def _resolve_includes(file_path: str, seen: set[str] | None = None) -> str:
+def _resolve_includes(
+    file_path: str,
+    seen: set[str] | None = None,
+    logs: list[dict] | None = None,
+) -> str:
     """Read a file and inline any include directives."""
     if seen is None:
         seen = set()
+    if logs is None:
+        logs = []
 
     real = os.path.realpath(file_path)
     if real in seen:
-        return ""  # avoid circular includes
+        logs.append({"level": "warn", "message": f"Circular include skipped: {file_path}"})
+        return ""
     seen.add(real)
 
     base_dir = os.path.dirname(real)
@@ -79,11 +90,18 @@ def _resolve_includes(file_path: str, seen: set[str] | None = None) -> str:
     for match in include_pattern.finditer(content):
         lines.append(content[pos:match.start()])
         inc_path = match.group(1)
+        original_inc_path = inc_path
         # Resolve relative to the including file's directory
         if not os.path.isabs(inc_path):
             inc_path = os.path.join(base_dir, inc_path)
+        if not os.path.isfile(inc_path):
+            # Absolute path from the original server — try basename in local dir
+            inc_path = os.path.join(base_dir, os.path.basename(inc_path))
         if os.path.isfile(inc_path):
-            lines.append(_resolve_includes(inc_path, seen))
+            logs.append({"level": "info", "message": f"Resolved include: {original_inc_path}"})
+            lines.append(_resolve_includes(inc_path, seen, logs))
+        else:
+            logs.append({"level": "warn", "message": f"Include file not found: {original_inc_path}"})
         pos = match.end()
 
     lines.append(content[pos:])

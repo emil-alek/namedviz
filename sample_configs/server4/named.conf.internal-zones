@@ -1,0 +1,46 @@
+// TSIG Key for Dynamic DNS (e.g., from a DHCP server or automated IPAM)
+key "dhcp-key" {
+    algorithm hmac-sha256;
+    secret "6J2asD9fHkL0PqRstUvwXyz1234567890abcdefg=";
+};
+
+// --- Forward Zones ---
+
+zone "corp.local" {
+    type master;
+    file "/var/lib/bind/db.corp.local";
+    
+    // Allow the DHCP server to update records dynamically using the TSIG key
+    allow-update { key "dhcp-key"; };
+    
+    // Notify secondary DNS servers in the Cherry Hill office
+    notify yes;
+    also-notify { 10.50.10.11; }; 
+};
+
+//zone "dev.corp.local" {
+//    type slave;
+//    file "/var/cache/bind/db.dev.corp.local";
+//    masters { 10.50.20.50; }; // Master is likely in a different subnet/VLAN
+//};
+
+// --- Reverse Lookup Zones (The IPAM Bread and Butter) ---
+
+// Reverse zone for the 192.168.1.0/24 subnet
+zone "1.168.192.in-addr.arpa" {
+    type master;
+    file "/var/lib/bind/db.192.168.1";
+    allow-update { key "dhcp-key"; };
+};
+
+// Reverse zone for a specific management VLAN (10.50.10.0/24)
+zone "10.50.10.in-addr.arpa" {
+    type master;
+    file "/var/lib/bind/db.10.50.10";
+};
+
+// --- Static Stub for a Partner/Acquisition Domain ---
+//zone "partner-site.net" {
+//    type stub;
+//    masters { 172.16.5.1; };
+//};

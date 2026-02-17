@@ -10,10 +10,10 @@ const Legend = (() => {
     ];
 
     const NODE_ITEMS = [
-        { role: 'master', label: 'Master', fill: '#6c63ff', stroke: '#8b84ff' },
-        { role: 'slave', label: 'Slave', fill: '#22c997', stroke: '#3de8b4' },
-        { role: 'mixed', label: 'Mixed', fill: '#f5a623', stroke: '#ffc040' },
-        { role: 'external', label: 'External IP', fill: '#3a3a52', stroke: '#55556e', rect: true },
+        { key: 'master', label: 'Master zones', color: '#6c63ff' },
+        { key: 'slave', label: 'Slave zones', color: '#22c997' },
+        { key: 'forward', label: 'Forward zones', color: '#b07ae8' },
+        { key: 'external', label: 'External IP', fill: '#3a3a52', stroke: '#55556e', rect: true },
     ];
 
     function render(containerId) {
@@ -72,14 +72,26 @@ const Legend = (() => {
                 rect.setAttribute('stroke-width', '1');
                 svg.appendChild(rect);
             } else {
-                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', '15');
-                circle.setAttribute('cy', '7');
-                circle.setAttribute('r', '6');
-                circle.setAttribute('fill', item.fill);
-                circle.setAttribute('stroke', item.stroke);
-                circle.setAttribute('stroke-width', '1.5');
-                svg.appendChild(circle);
+                // Small donut arc preview
+                const outerR = 6;
+                const innerR = 3;
+                // Full-ring arc path
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const cx = 15, cy = 7;
+                const d = [
+                    `M${cx},${cy - outerR}`,
+                    `A${outerR},${outerR} 0 1,1 ${cx},${cy + outerR}`,
+                    `A${outerR},${outerR} 0 1,1 ${cx},${cy - outerR}`,
+                    'Z',
+                    `M${cx},${cy - innerR}`,
+                    `A${innerR},${innerR} 0 1,0 ${cx},${cy + innerR}`,
+                    `A${innerR},${innerR} 0 1,0 ${cx},${cy - innerR}`,
+                    'Z',
+                ].join(' ');
+                path.setAttribute('d', d);
+                path.setAttribute('fill', item.color);
+                path.setAttribute('fill-rule', 'evenodd');
+                svg.appendChild(path);
             }
 
             const label = document.createElement('span');

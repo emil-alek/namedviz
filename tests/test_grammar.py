@@ -169,3 +169,56 @@ def test_parse_primaries_alias():
     assert len(zones) == 1
     masters = list(zones[0]["masters"])
     assert "10.0.0.1" in masters
+
+
+def test_parse_listen_on():
+    text = '''
+    options {
+        listen-on { 10.0.0.1; };
+    };
+    '''
+    result = parse_named_conf(text)
+    options = [r for r in result if r.getName() == "options"]
+    assert len(options) == 1
+    listen = list(options[0]["listen_on"])
+    assert "10.0.0.1" in listen
+
+
+def test_parse_listen_on_with_port():
+    text = '''
+    options {
+        listen-on port 53 { 10.0.0.1; 10.0.0.2; };
+    };
+    '''
+    result = parse_named_conf(text)
+    options = [r for r in result if r.getName() == "options"]
+    assert len(options) == 1
+    listen = list(options[0]["listen_on"])
+    assert "10.0.0.1" in listen
+    assert "10.0.0.2" in listen
+
+
+def test_parse_listen_on_v6():
+    text = '''
+    options {
+        listen-on-v6 { ::1; };
+    };
+    '''
+    result = parse_named_conf(text)
+    options = [r for r in result if r.getName() == "options"]
+    assert len(options) == 1
+    listen_v6 = list(options[0]["listen_on_v6"])
+    assert len(listen_v6) >= 1
+
+
+def test_parse_listen_on_with_any():
+    text = '''
+    options {
+        listen-on { any; };
+    };
+    '''
+    result = parse_named_conf(text)
+    options = [r for r in result if r.getName() == "options"]
+    assert len(options) == 1
+    listen = list(options[0]["listen_on"])
+    assert "any" in listen
