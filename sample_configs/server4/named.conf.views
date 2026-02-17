@@ -3,7 +3,7 @@ view "internal" {
     recursion yes;
 
     // Nested include for internal zone declarations
-    include "/etc/bind/named.conf.internal-zones";
+    include "/etc/bind/zones/named.conf.internal-zones";
 };
 
 view "external" {
@@ -11,5 +11,5 @@ view "external" {
     recursion no;
 
     // Nested include for public-facing zone declarations
-    include "/etc/bind/named.conf.external-zones";
+    include "/etc/bind/zones/named.conf.external-zones";
 };

@@ -162,8 +162,16 @@ def upload_configs():
         server_dir = os.path.join(upload_dir, server_name)
         os.makedirs(server_dir, exist_ok=True)
         for file in files:
-            filename = Path(file.filename).name
-            file.save(os.path.join(server_dir, filename))
+            # Preserve subdirectory structure (e.g. "zones/example.com.zone")
+            # so that include directives resolve correctly
+            raw_name = file.filename.replace("\\", "/")
+            parts = [p for p in raw_name.split("/") if p and p != ".."]
+            if not parts:
+                continue
+            rel_path = os.path.join(*parts)
+            file_path = os.path.join(server_dir, rel_path)
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            file.save(file_path)
 
     try:
         from .app import _parse_configs

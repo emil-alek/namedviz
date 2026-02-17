@@ -179,7 +179,7 @@
             const formData = new FormData();
             uploadedFiles.forEach(entry => {
                 entry.files.forEach(file => {
-                    formData.append(entry.serverName, file, file.name);
+                    formData.append(entry.serverName, file, file._serverRelativePath || file.name);
                 });
             });
 
@@ -276,23 +276,25 @@
             return;
         }
 
-        // Group files by derived server name (parent directory)
+        // Group files by top-level folder (= one server per folder).
+        // Subfolders (e.g. zones/, includes/) belong to the same server.
         const groups = {};
         files.forEach(file => {
             const relPath = file.webkitRelativePath || file._relativePath || file.name;
             const parts = relPath.split('/').filter(Boolean);
 
-            let serverName;
+            let serverName, innerPath;
             if (parts.length >= 2) {
-                // e.g. "server1/named.conf" → "server1"
-                // e.g. "configs/server1/named.conf" → "server1" (parent of file)
-                serverName = parts[parts.length - 2];
+                serverName = parts[0]; // top-level folder = server name
+                innerPath = parts.slice(1).join('/'); // path within server folder
             } else {
                 // Single file with no directory — derive from filename
                 serverName = file.name.replace(/\.[^.]+$/i, '');
                 if (serverName === 'named') serverName = `server${uploadedFiles.length + Object.keys(groups).length + 1}`;
+                innerPath = file.name;
             }
 
+            file._serverRelativePath = innerPath;
             if (!groups[serverName]) groups[serverName] = [];
             groups[serverName].push(file);
         });
@@ -339,9 +341,9 @@
 
             const fileName = document.createElement('span');
             fileName.className = 'file-name';
-            const names = entry.files.map(f => f.name);
+            const names = entry.files.map(f => f._serverRelativePath || f.name);
             fileName.textContent = names.length === 1 ? names[0] : `${names.length} files`;
-            fileName.title = names.join(', ');
+            fileName.title = names.join('\n');
 
             const removeBtn = document.createElement('button');
             removeBtn.className = 'file-remove';

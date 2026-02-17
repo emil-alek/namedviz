@@ -71,7 +71,7 @@
     <div id="upload-overlay" class="upload-overlay">
         <div class="upload-modal">
             <h2>Upload named.conf Files</h2>
-            <p>Upload individual files or a folder. Server names are derived from folder names or can be edited below.</p>
+            <p>Upload one folder per DNS server — all files including subfolders (e.g. zone files, includes) are treated as part of that server. You can also upload individual config files. Server names can be edited below.</p>
             <div id="upload-file-list" class="upload-file-list"></div>
             <div class="upload-drop-zone" id="upload-drop-zone">
                 <input type="file" id="upload-input" multiple accept=".conf,.txt,*" hidden>
@@ -101,8 +101,8 @@
                 </ul>
                 <h3>How to use</h3>
                 <ul>
-                    <li>Upload one <code>named.conf</code> file per DNS server</li>
-                    <li>Assign a name to each server (e.g. ns1, ns2)</li>
+                    <li>Upload one folder per DNS server (subfolders for includes are preserved)</li>
+                    <li>Assign a name to each server (e.g. ns1, ns2) — defaults to folder name</li>
                     <li>Click <strong>Parse & Visualize</strong> to generate the diagram</li>
                     <li>Hover over nodes and edges for details, click for full info</li>
                     <li>Use sidebar filters to focus on specific relationships or servers</li>

@@ -163,15 +163,11 @@ def test_upload_multi_file_server(client):
             files[fname] = f.read()
 
     # Upload all files under the same server name
-    data = {}
-    for i, (fname, content) in enumerate(files.items()):
-        data[f"myserver"] = (io.BytesIO(content), f"myserver/{fname}")
-
-    # Use the werkzeug MultiDict approach for multiple files with same field name
+    # Filenames are relative paths within the server folder (no server name prefix)
     from werkzeug.datastructures import FileStorage, MultiDict
     items = []
     for fname, content in files.items():
-        items.append(("myserver", (io.BytesIO(content), f"myserver/{fname}")))
+        items.append(("myserver", (io.BytesIO(content), fname)))
 
     resp = client.post("/api/upload", data=MultiDict(items),
                        content_type="multipart/form-data")

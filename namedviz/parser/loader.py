@@ -50,13 +50,15 @@ def load_and_parse(file_path: str) -> tuple[dict, list[dict]]:
     Each log entry is a dict with 'level' ('info' or 'warn') and 'message'.
     """
     logs: list[dict] = []
-    text = _resolve_includes(file_path, logs=logs)
+    root_dir = os.path.dirname(os.path.realpath(file_path))
+    text = _resolve_includes(file_path, root_dir=root_dir, logs=logs)
     results = parse_named_conf(text)
     return results, logs
 
 
 def _resolve_includes(
     file_path: str,
+    root_dir: str,
     seen: set[str] | None = None,
     logs: list[dict] | None = None,
 ) -> str:
@@ -97,12 +99,37 @@ def _resolve_includes(
         if not os.path.isfile(inc_path):
             # Absolute path from the original server — try basename in local dir
             inc_path = os.path.join(base_dir, os.path.basename(inc_path))
-        if os.path.isfile(inc_path):
+        if not os.path.isfile(inc_path):
+            # Try matching path suffixes against the server root directory.
+            # e.g. "/etc/bind/zones/named.conf.internal-zones" tries
+            # "zones/named.conf.internal-zones" relative to root_dir.
+            inc_path = _find_by_suffix(original_inc_path, root_dir)
+        if inc_path and os.path.isfile(inc_path):
             logs.append({"level": "info", "message": f"Resolved include: {original_inc_path}"})
-            lines.append(_resolve_includes(inc_path, seen, logs))
+            lines.append(_resolve_includes(inc_path, root_dir, seen, logs))
         else:
             logs.append({"level": "warn", "message": f"Include file not found: {original_inc_path}"})
         pos = match.end()
 
     lines.append(content[pos:])
     return "".join(lines)
+
+
+def _find_by_suffix(inc_path: str, root_dir: str) -> str | None:
+    """Try progressively longer path suffixes against root_dir.
+
+    For "/etc/bind/zones/file.conf", tries:
+      root_dir/file.conf
+      root_dir/zones/file.conf
+      root_dir/bind/zones/file.conf
+      ...
+    Returns the first match or None.
+    """
+    parts = Path(inc_path.replace("\\", "/")).parts
+    # Skip any root component (e.g. "/" on Unix)
+    parts = [p for p in parts if p != "/"]
+    for i in range(len(parts) - 1, -1, -1):
+        candidate = os.path.join(root_dir, *parts[i:])
+        if os.path.isfile(candidate):
+            return candidate
+    return None
