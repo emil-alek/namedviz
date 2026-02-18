@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from flask import Flask
+from flask import Flask, Request as FlaskRequest
 
 from .api import api_bp
+
+
+class _UnlimitedRequest(FlaskRequest):
+    """Remove Werkzeug 3.x's default 500 KB form-data memory limit."""
+    max_form_memory_size: int | None = None
 
 
 def create_app(config_path: str | None = None) -> Flask:
@@ -14,6 +19,7 @@ def create_app(config_path: str | None = None) -> Flask:
     If config_path is provided, configs are parsed on startup.
     """
     app = Flask(__name__, static_folder="static", static_url_path="/static")
+    app.request_class = _UnlimitedRequest
 
     # No upload size limit (config files are text, but folders can add up)
     app.config["MAX_CONTENT_LENGTH"] = None
