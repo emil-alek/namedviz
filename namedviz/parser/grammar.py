@@ -97,7 +97,7 @@ unknown_stmt = (
     + pp.Suppress(
         pp.ZeroOrMore(value | pp.Regex(r'!'))
         + (
-            (LBRACE + pp.SkipTo("}") + RBRACE + pp.Optional(pp.Literal(";")))
+            (pp.nested_expr("{", "}") + pp.Optional(pp.Literal(";")))
             | SEMI
         )
     )
@@ -176,7 +176,7 @@ acl_block = pp.Group(
 server_stmt = pp.Group(
     pp.Suppress(pp.Keyword("server"))
     + ip_addr("ip")
-    + pp.Optional(pp.Suppress(LBRACE + pp.SkipTo("}") + RBRACE))
+    + pp.Optional(pp.Suppress(pp.nested_expr("{", "}")))
     + SEMI
 )("view_servers*")
 
