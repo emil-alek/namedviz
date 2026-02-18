@@ -15,6 +15,9 @@ def create_app(config_path: str | None = None) -> Flask:
     """
     app = Flask(__name__, static_folder="static", static_url_path="/static")
 
+    # No upload size limit (config files are text, but folders can add up)
+    app.config["MAX_CONTENT_LENGTH"] = None
+
     # Store config path and parsed data in app config
     app.config["CONFIG_PATH"] = config_path
     app.config["SERVERS"] = []
