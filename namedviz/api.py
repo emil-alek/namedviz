@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import tempfile
+import traceback
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
+
+log = logging.getLogger(__name__)
 
 api_bp = Blueprint("api", __name__)
 
@@ -180,18 +184,24 @@ def upload_configs():
         for server_name, files in server_files.items():
             server_dir = os.path.join(upload_dir, server_name)
             os.makedirs(server_dir, exist_ok=True)
+            log.info("Saving %d file(s) for server %r -> %s", len(files), server_name, server_dir)
             for file in files:
                 # Preserve subdirectory structure (e.g. "zones/example.com.zone")
                 # so that include directives resolve correctly
                 raw_name = (file.filename or "").replace("\\", "/")
                 parts = [p for p in raw_name.split("/") if p and p != ".."]
+                log.info("  field=%r  filename=%r  parts=%r", file.name if hasattr(file, 'name') else '?', file.filename, parts)
                 if not parts:
+                    log.warning("  Skipping file with empty path (field=%r)", file.filename)
                     continue
                 rel_path = os.path.join(*parts)
                 file_path = os.path.join(server_dir, rel_path)
+                log.info("  -> saving to: %s", file_path)
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
                 file.save(file_path)
+                log.info("  saved OK")
 
+        log.info("All files saved. Running _parse_configs on %s", upload_dir)
         from .app import _parse_configs
         current_app.config["CONFIG_PATH"] = upload_dir
         warnings = _parse_configs(current_app)
@@ -205,4 +215,6 @@ def upload_configs():
             "logs": warnings,
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        tb = traceback.format_exc()
+        log.exception("Upload failed")
+        return jsonify({"error": str(e), "traceback": tb}), 500

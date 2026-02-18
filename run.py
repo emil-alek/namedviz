@@ -6,7 +6,10 @@ Usage:
     python run.py /path/to/configs  # Pre-load configs from a directory
 """
 
+import logging
 import sys
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 from namedviz.app import create_app
 
