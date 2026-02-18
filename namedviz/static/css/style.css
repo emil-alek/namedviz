@@ -72,13 +72,14 @@ header {
 }
 
 header h1 {
-    font-size: 16px;
+    font-size: 19px;
     font-weight: 700;
     letter-spacing: -0.3px;
     color: var(--text-primary);
 }
 
-header h1 span {
+header h1 span,
+.accent {
     color: var(--accent);
 }
 
@@ -683,6 +684,11 @@ button.primary:hover {
     font-size: 13px;
 }
 
+.upload-named-conf {
+    color: var(--accent);
+    font-weight: 600;
+}
+
 .upload-drop-zone a {
     color: var(--accent);
     text-decoration: none;
@@ -998,7 +1004,7 @@ button.primary:hover {
     position: fixed;
     bottom: 16px;
     right: 16px;
-    width: 380px;
+    width: 480px;
     max-height: 240px;
     background: rgba(22, 22, 37, 0.92);
     backdrop-filter: blur(16px);

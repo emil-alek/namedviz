@@ -54,7 +54,7 @@ def load_and_parse(file_path: str) -> tuple[dict, list[dict]]:
     text = _resolve_includes(file_path, root_dir=root_dir, logs=logs)
     results = parse_named_conf(text)
     for keyword in get_unknown_warnings():
-        logs.append({"level": "warn", "message": f"Unrecognized statement skipped: {keyword}"})
+        logs.append({"level": "warn", "message": f"Irrelevant statement skipped: {keyword}"})
     return results, logs
 
 

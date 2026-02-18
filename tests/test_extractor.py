@@ -216,7 +216,7 @@ def test_unknown_stmt_warnings():
 
     warn_msgs = [l["message"] for l in logs if l["level"] == "warn"]
     # match-clients and recursion are unknown statements inside views
-    unknown_keywords = [m for m in warn_msgs if "Unrecognized statement skipped:" in m]
+    unknown_keywords = [m for m in warn_msgs if "Irrelevant statement skipped:" in m]
     assert len(unknown_keywords) > 0
     # match-clients should be among them
     assert any("match-clients" in m for m in unknown_keywords)
