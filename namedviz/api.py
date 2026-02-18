@@ -176,22 +176,22 @@ def upload_configs():
     if not server_files:
         return jsonify({"error": "No valid config files found"}), 400
 
-    for server_name, files in server_files.items():
-        server_dir = os.path.join(upload_dir, server_name)
-        os.makedirs(server_dir, exist_ok=True)
-        for file in files:
-            # Preserve subdirectory structure (e.g. "zones/example.com.zone")
-            # so that include directives resolve correctly
-            raw_name = file.filename.replace("\\", "/")
-            parts = [p for p in raw_name.split("/") if p and p != ".."]
-            if not parts:
-                continue
-            rel_path = os.path.join(*parts)
-            file_path = os.path.join(server_dir, rel_path)
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            file.save(file_path)
-
     try:
+        for server_name, files in server_files.items():
+            server_dir = os.path.join(upload_dir, server_name)
+            os.makedirs(server_dir, exist_ok=True)
+            for file in files:
+                # Preserve subdirectory structure (e.g. "zones/example.com.zone")
+                # so that include directives resolve correctly
+                raw_name = (file.filename or "").replace("\\", "/")
+                parts = [p for p in raw_name.split("/") if p and p != ".."]
+                if not parts:
+                    continue
+                rel_path = os.path.join(*parts)
+                file_path = os.path.join(server_dir, rel_path)
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                file.save(file_path)
+
         from .app import _parse_configs
         current_app.config["CONFIG_PATH"] = upload_dir
         warnings = _parse_configs(current_app)
