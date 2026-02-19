@@ -704,6 +704,20 @@ button.primary:hover {
     margin-bottom: 12px;
 }
 
+.upload-error {
+    color: #e57373;
+    font-size: 0.85rem;
+    margin: 0.25rem 0 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: rgba(229, 115, 115, 0.1);
+    border-left: 3px solid #e57373;
+    border-radius: 3px;
+}
+
+.upload-error.hidden {
+    display: none;
+}
+
 .upload-file-item {
     display: flex;
     align-items: center;
