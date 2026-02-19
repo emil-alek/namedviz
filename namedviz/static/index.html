@@ -76,13 +76,21 @@
     <div id="upload-overlay" class="upload-overlay">
         <div class="upload-modal">
             <h2>Upload <span class="upload-named-conf">named.conf</span> Files</h2>
-            <p>Upload individual files or a folder. Server names are derived from folder names or can be edited below.</p>
+            <p>Drag folders from your file explorer, or browse below. Each folder = one server. Server names can be edited.</p>
             <div id="upload-file-list" class="upload-file-list"></div>
             <div id="upload-error" class="upload-error hidden"></div>
             <div class="upload-drop-zone" id="upload-drop-zone">
                 <input type="file" id="upload-input" multiple accept=".conf,.txt,*" hidden>
                 <input type="file" id="upload-folder-input" webkitdirectory hidden>
-                <p>Drag & drop files or folders here, or <a href="#" id="upload-browse">browse files</a> / <a href="#" id="upload-browse-folder">browse folder</a></p>
+                <svg class="drop-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="6" y="20" width="36" height="22" rx="3" stroke="currentColor" stroke-width="2"/>
+                    <path d="M6 26h36" stroke="currentColor" stroke-width="2"/>
+                    <path d="M6 23v-3a3 3 0 013-3h8l3-4h8l3 4h8a3 3 0 013 3v3" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                    <path d="M24 32v6M21 35l3-3 3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <p class="drop-primary">Drag &amp; drop folders or files here</p>
+                <p class="drop-secondary">or <a href="#" id="upload-browse">browse files</a> / <a href="#" id="upload-browse-folder">browse folder</a></p>
+                <p class="drop-hint">On Windows, dragging folders from Explorer is more reliable than the folder picker</p>
             </div>
             <button id="upload-submit" class="upload-submit" disabled>Parse & Visualize</button>
         </div>
