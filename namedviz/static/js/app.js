@@ -2,6 +2,9 @@
  * Main application orchestration.
  */
 (function() {
+    const MAX_UPLOAD_FILES = 2000;
+    const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100 MB
+
     let graphData = null;
     let uploadedFiles = []; // [{files: [File, ...], serverName}]
     let allLogs = []; // [{level, message}]
@@ -375,6 +378,7 @@
     }
 
     function addFolderFiles(files) {
+        files = files.filter(f => !f.name.endsWith('.jnl'));
         if (!files.length) {
             alert('No files found in the selected folder.');
             return;
@@ -417,6 +421,7 @@
     }
 
     function addFiles(files) {
+        files = files.filter(f => !f.name.endsWith('.jnl'));
         files.forEach(file => {
             // Derive a default server name from filename
             let name = file.name.replace(/\.[^.]+$/i, '');
@@ -463,7 +468,30 @@
             list.appendChild(div);
         });
 
-        submitBtn.disabled = uploadedFiles.length === 0;
+        // Count totals
+        let totalFiles = 0, totalBytes = 0;
+        uploadedFiles.forEach(entry => {
+            entry.files.forEach(file => { totalFiles++; totalBytes += file.size; });
+        });
+
+        // Validate against server limits
+        const errorEl = document.getElementById('upload-error');
+        let errorMsg = null;
+        if (totalFiles > MAX_UPLOAD_FILES) {
+            errorMsg = `Too many files: ${totalFiles} selected, limit is ${MAX_UPLOAD_FILES}.`;
+        } else if (totalBytes > MAX_UPLOAD_BYTES) {
+            const mb = (totalBytes / 1024 / 1024).toFixed(1);
+            errorMsg = `Upload too large: ${mb} MB, limit is ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`;
+        }
+
+        if (errorMsg) {
+            errorEl.textContent = errorMsg;
+            errorEl.classList.remove('hidden');
+            submitBtn.disabled = true;
+        } else {
+            errorEl.classList.add('hidden');
+            submitBtn.disabled = uploadedFiles.length === 0;
+        }
     }
 
     function setupButtons() {

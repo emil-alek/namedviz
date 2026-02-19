@@ -7,6 +7,7 @@ Usage:
 """
 
 import logging
+import os
 import sys
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -31,8 +32,11 @@ def main():
     if graph:
         print(f"Graph: {len(graph.nodes)} nodes, {len(graph.links)} links")
 
-    print("Starting server at http://localhost:5000")
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "5000"))
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    print(f"Starting server at http://{host}:{port}")
+    app.run(host=host, port=port, debug=debug)
 
 
 if __name__ == "__main__":
