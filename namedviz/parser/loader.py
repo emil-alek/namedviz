@@ -90,33 +90,38 @@ def _resolve_includes(
         r'include\s+["\']([^"\']+)["\']\s*;', re.IGNORECASE
     )
 
-    pos = 0
-    for match in include_pattern.finditer(content):
-        lines.append(content[pos:match.start()])
-        inc_path = match.group(1)
-        original_inc_path = inc_path
-        # Resolve relative to the including file's directory
-        if not os.path.isabs(inc_path):
-            inc_path = os.path.join(base_dir, inc_path)
-        if not os.path.isfile(inc_path):
-            # Absolute path from the original server — try basename in local dir
-            inc_path = os.path.join(base_dir, os.path.basename(inc_path))
-        if not os.path.isfile(inc_path):
-            # Try matching path suffixes against the server root directory.
-            # e.g. "/etc/bind/zones/named.conf.internal-zones" tries
-            # "zones/named.conf.internal-zones" relative to root_dir.
-            inc_path = _find_by_suffix(original_inc_path, root_dir)
-        if not (inc_path and os.path.isfile(inc_path)):
-            # Last resort: recursive basename search in root_dir
-            inc_path = _find_recursive(original_inc_path, root_dir)
-        if inc_path and os.path.isfile(inc_path):
-            logs.append({"level": "info", "message": f"Resolved include: {original_inc_path}"})
-            lines.append(_resolve_includes(inc_path, root_dir, seen, logs))
-        else:
-            logs.append({"level": "warn", "message": f"Include file not found: {original_inc_path}"})
-        pos = match.end()
+    for line in content.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if stripped.startswith("//") or stripped.startswith("#"):
+            lines.append(line)
+            continue
+        pos = 0
+        for match in include_pattern.finditer(line):
+            lines.append(line[pos:match.start()])
+            inc_path = match.group(1)
+            original_inc_path = inc_path
+            # Resolve relative to the including file's directory
+            if not os.path.isabs(inc_path):
+                inc_path = os.path.join(base_dir, inc_path)
+            if not os.path.isfile(inc_path):
+                # Absolute path from the original server — try basename in local dir
+                inc_path = os.path.join(base_dir, os.path.basename(inc_path))
+            if not os.path.isfile(inc_path):
+                # Try matching path suffixes against the server root directory.
+                # e.g. "/etc/bind/zones/named.conf.internal-zones" tries
+                # "zones/named.conf.internal-zones" relative to root_dir.
+                inc_path = _find_by_suffix(original_inc_path, root_dir)
+            if not (inc_path and os.path.isfile(inc_path)):
+                # Last resort: recursive basename search in root_dir
+                inc_path = _find_recursive(original_inc_path, root_dir)
+            if inc_path and os.path.isfile(inc_path):
+                logs.append({"level": "info", "message": f"Resolved include: {original_inc_path}"})
+                lines.append(_resolve_includes(inc_path, root_dir, seen, logs))
+            else:
+                logs.append({"level": "warn", "message": f"Include file not found: {original_inc_path}"})
+            pos = match.end()
+        lines.append(line[pos:])
 
-    lines.append(content[pos:])
     return "".join(lines)
 
 

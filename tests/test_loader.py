@@ -92,6 +92,16 @@ def test_load_and_parse_with_missing_include():
     assert "missing-zones.conf" in include_warns[0]["message"]
 
 
+def test_load_and_parse_commented_include_is_skipped():
+    path = os.path.join(CONFDATA, "with_commented_include", "named.conf")
+    results, logs = load_and_parse(path)
+    # The commented-out include must NOT produce a warning
+    warn_messages = [e["message"] for e in logs if e["level"] == "warn"]
+    assert not any("nonexistent" in m for m in warn_messages)
+    # Zone from the non-commented line still parsed
+    assert "example.com" in str(results)
+
+
 def test_discover_sample_configs():
     sample_path = os.path.join(os.path.dirname(__file__), "..", "sample_configs")
     if not os.path.isdir(sample_path):
