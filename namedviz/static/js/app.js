@@ -587,7 +587,7 @@
         try {
             const resp = await fetch(`/api/server/${encodeURIComponent(node.id)}`);
             if (!resp.ok) {
-                let extHtml = `<h2>${node.id}</h2><p>External IP address</p>`;
+                let extHtml = `<h2>${node.id}</h2><p>Unknown DNS Server</p>`;
                 if (node.views && node.views.length) {
                     extHtml += `<p><strong>Views:</strong> ${node.views.join(', ')}</p>`;
                 }
@@ -597,27 +597,49 @@
             }
             const data = await resp.json();
 
-            const viewCounts = {};
+            // Compute per-view zone-type stats
+            const viewStats = {}; // { viewName: { total, [zoneType]: count } }
             (data.zones || []).forEach(z => {
                 const v = z.view || '(no view)';
-                viewCounts[v] = (viewCounts[v] || 0) + 1;
+                if (!viewStats[v]) viewStats[v] = { total: 0 };
+                viewStats[v].total++;
+                viewStats[v][z.type] = (viewStats[v][z.type] || 0) + 1;
             });
-            const zoneParts = Object.entries(viewCounts).map(([v, n]) => `${v}: ${n}`);
-            const zoneLabel = zoneParts.length
-                ? `${data.zone_count} zone(s) &mdash; ${zoneParts.join(', ')}`
-                : `${data.zone_count} zone(s)`;
+            const viewNames = Object.keys(viewStats);
+            const hasViews = viewNames.some(v => v !== '(no view)');
 
+            // Header with badges
             let html = `<div class="detail-header">`;
             html += `<h2>${data.name}</h2>`;
+
+            // 1. IP always first
             if (data.listen_on && data.listen_on.length) {
-                html += `<span class="detail-badge">${data.listen_on.join(', ')}</span>`;
+                html += `<span class="detail-badge" data-tooltip="Listening addresses">${data.listen_on.join(', ')}</span>`;
             }
-            html += `<span class="detail-badge">${zoneLabel}</span>`;
+
+            // 2. Total views (if views present)
+            if (hasViews) {
+                const viewList = viewNames.join(', ');
+                html += `<span class="detail-badge" data-tooltip="Views: ${viewList}">${viewNames.length} views</span>`;
+            }
+
+            // 3. Zones + per-view breakdown in one badge
+            let zonesBadge = `${data.zone_count} zones`;
+            let zonesTooltip = `Total zones`;
+            if (hasViews) {
+                const breakdown = viewNames.map(v => `${v}: ${viewStats[v].total}`).join(', ');
+                zonesBadge += ` · ${breakdown}`;
+                zonesTooltip = `Zones by view: ${breakdown}`;
+            }
+            html += `<span class="detail-badge" data-tooltip="${zonesTooltip}">${zonesBadge}</span>`;
+
+            // 4. Global forwarding
             if (data.global_forwarders && data.global_forwarders.length) {
-                html += `<span class="detail-badge">Global Forwarding: ${data.global_forwarders.join(', ')}</span>`;
+                html += `<span class="detail-badge" data-tooltip="Global forwarders">Global Forwarding: ${data.global_forwarders.join(', ')}</span>`;
             }
             html += `</div>`;
 
+            // Zone table
             if (data.zones && data.zones.length) {
                 html += '<table><tr><th>Zone</th><th>Type</th><th>View</th><th>Masters</th></tr>';
                 data.zones.forEach(z => {

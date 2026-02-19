@@ -3,18 +3,18 @@
  */
 const Legend = (() => {
     const LINK_ITEMS = [
-        { type: 'master_slave', label: 'Master / Slave', color: '#5b8af5', dash: '' },
-        { type: 'also_notify', label: 'Also Notify', color: '#f5a623', dash: '6 3' },
+        { type: 'master_slave', label: 'Master / Slave', color: '#ffc300', dash: '' },
+        { type: 'also_notify', label: 'Also Notify', color: '#4dabf7', dash: '6 3' },
         { type: 'allow_transfer', label: 'Allow Transfer', color: '#22c997', dash: '2 3' },
         { type: 'forward', label: 'Forward', color: '#b07ae8', dash: '' },
         { type: 'peer', label: 'DNS Server', color: '#f06292', dash: '4 2' },
     ];
 
     const NODE_ITEMS = [
-        { key: 'master', label: 'Master zones', color: '#6c63ff' },
+        { key: 'master', label: 'Master zones', color: '#ffd166' },
         { key: 'slave', label: 'Slave zones', color: '#22c997' },
         { key: 'forward', label: 'Forward zones', color: '#b07ae8' },
-        { key: 'external', label: 'External IP', fill: '#3a3a52', stroke: '#55556e', rect: true },
+        { key: 'external', label: 'Unknown DNS Server', fill: '#3a3a52', stroke: '#55556e', rect: true },
     ];
 
     function render(containerId) {

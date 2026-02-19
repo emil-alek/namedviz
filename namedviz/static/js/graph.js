@@ -3,15 +3,15 @@
  */
 const Graph = (() => {
     const REL_COLORS = {
-        master_slave: '#5b8af5',
-        also_notify: '#f5a623',
+        master_slave: '#ffc300',
+        also_notify: '#4dabf7',
         allow_transfer: '#22c997',
         forward: '#b07ae8',
         peer: '#f06292',
     };
 
     const ZONE_TYPE_COLORS = {
-        master: '#6c63ff',
+        master: '#ffd166',
         slave: '#22c997',
         forward: '#b07ae8',
     };
@@ -333,7 +333,7 @@ const Graph = (() => {
             html += '</ul>';
             return html;
         }
-        let html = `<h4>${d.id}</h4><div class="tooltip-type">External IP</div>`;
+        let html = `<h4>${d.id}</h4><div class="tooltip-type">Unknown DNS Server</div>`;
         if (d.views && d.views.length) {
             html += `<div class="tooltip-views">Views: ${d.views.join(', ')}</div>`;
         }
