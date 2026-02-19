@@ -2,8 +2,8 @@
  * Main application orchestration.
  */
 (function() {
-    const MAX_UPLOAD_FILES = 2000;
-    const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100 MB
+    const MAX_UPLOAD_FILES = 5000;
+    const MAX_UPLOAD_BYTES = 500 * 1024 * 1024; // 500 MB
 
     let graphData = null;
     let uploadedFiles = []; // [{files: [File, ...], serverName}]
@@ -378,7 +378,7 @@
     }
 
     function addFolderFiles(files) {
-        files = files.filter(f => !f.name.endsWith('.jnl'));
+        files = files.filter(f => !f.name.endsWith('.jnl') && !f.name.includes('dump.db'));
         if (!files.length) {
             alert('No files found in the selected folder.');
             return;
@@ -421,7 +421,7 @@
     }
 
     function addFiles(files) {
-        files = files.filter(f => !f.name.endsWith('.jnl'));
+        files = files.filter(f => !f.name.endsWith('.jnl') && !f.name.includes('dump.db'));
         files.forEach(file => {
             // Derive a default server name from filename
             let name = file.name.replace(/\.[^.]+$/i, '');

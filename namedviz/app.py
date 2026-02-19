@@ -11,7 +11,7 @@ from .api import api_bp
 class _UnlimitedRequest(FlaskRequest):
     """Override Werkzeug 3.x form-data limits for large BIND config uploads."""
     max_form_memory_size: int | None = None   # non-file field names only; negligible
-    max_form_parts: int | None = 2000         # was 1000 (caused 413 with 1069 files)
+    max_form_parts: int | None = 5000         # was 1000 (caused 413 with 1069 files)
 
 
 def create_app(config_path: str | None = None) -> Flask:
@@ -22,7 +22,7 @@ def create_app(config_path: str | None = None) -> Flask:
     app = Flask(__name__, static_folder="static", static_url_path="/static")
     app.request_class = _UnlimitedRequest
 
-    app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
+    app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB
 
     # Store config path and parsed data in app config
     app.config["CONFIG_PATH"] = config_path

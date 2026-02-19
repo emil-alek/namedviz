@@ -18,6 +18,25 @@ log = logging.getLogger(__name__)
 api_bp = Blueprint("api", __name__)
 
 
+def _prune_logs(log_dir: Path) -> None:
+    """Delete old log files by age and count.
+
+    Reads LOG_MAX_FILES (default 50) and LOG_MAX_DAYS (default 30) from
+    environment variables. Both rules are applied on every call; whichever
+    removes more files wins.
+    """
+    max_files = int(os.environ.get("LOG_MAX_FILES", "50"))
+    max_days = int(os.environ.get("LOG_MAX_DAYS", "7"))
+    cutoff = datetime.now().timestamp() - max_days * 86400
+    files = sorted(log_dir.glob("*.log"), key=lambda f: f.stat().st_mtime)
+    # Delete by age first; unlink() returns None so the expression is True only
+    # when the file is old, removing it from the list at the same time.
+    files = [f for f in files if not (f.stat().st_mtime < cutoff and f.unlink() is None)]
+    # Delete by count (oldest first, already sorted ascending by mtime)
+    for f in files[:-max_files] if len(files) > max_files else []:
+        f.unlink(missing_ok=True)
+
+
 def _save_logs(logs):
     """Write log entries to a timestamped file in the logs/ directory."""
     if not logs:
@@ -32,6 +51,7 @@ def _save_logs(logs):
         message = entry.get("message", str(entry))
         lines.append(f"[{level}] {message}")
     log_file.write_text("\n".join(lines), encoding="utf-8")
+    _prune_logs(log_dir)
 
 
 @api_bp.route("/")
