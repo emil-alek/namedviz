@@ -57,8 +57,11 @@ def _ip_list(name: str):
     elif name == "allow-transfer":
         key_keyword = pp.Keyword("allow-transfer")
 
-    # Items can be IPs, ACL names, 'key' references, 'port' specs — grab values
-    item = ip_addr | value
+    # Suppress optional port/key qualifiers that may follow each entry:
+    #   masters { 10.0.0.1 port 5353 key "mykey"; };
+    _port_qual = pp.Optional(pp.Suppress(pp.Keyword("port") + value))
+    _key_qual  = pp.Optional(pp.Suppress(pp.Keyword("key") + value))
+    item = (ip_addr | value) + _port_qual + _key_qual
     return pp.Group(
         pp.Suppress(key_keyword)
         + LBRACE

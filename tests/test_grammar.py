@@ -211,6 +211,27 @@ def test_parse_listen_on_v6():
     assert len(listen_v6) >= 1
 
 
+def test_parse_masters_with_port():
+    text = 'zone "z" { type slave; masters { 10.0.0.1 port 5353; }; };'
+    result = parse_named_conf(text)
+    zones = [r for r in result if r.getName() == "zone"]
+    assert list(zones[0]["masters"]) == ["10.0.0.1"]
+
+
+def test_parse_masters_with_key():
+    text = 'zone "z" { type slave; masters { 10.0.0.1 key "mykey"; }; };'
+    result = parse_named_conf(text)
+    zones = [r for r in result if r.getName() == "zone"]
+    assert list(zones[0]["masters"]) == ["10.0.0.1"]
+
+
+def test_parse_masters_with_port_and_key():
+    text = 'zone "z" { type slave; masters { 10.0.0.1 port 53 key "k"; 10.0.0.2; }; };'
+    result = parse_named_conf(text)
+    zones = [r for r in result if r.getName() == "zone"]
+    assert list(zones[0]["masters"]) == ["10.0.0.1", "10.0.0.2"]
+
+
 def test_parse_listen_on_with_any():
     text = '''
     options {

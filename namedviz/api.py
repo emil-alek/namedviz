@@ -238,3 +238,7 @@ def upload_configs():
         tb = traceback.format_exc()
         log.exception("Upload failed")
         return jsonify({"error": str(e), "traceback": tb}), 500
+    finally:
+        shutil.rmtree(upload_dir, ignore_errors=True)
+        current_app.config.pop("UPLOAD_DIR", None)
+        current_app.config.pop("CONFIG_PATH", None)

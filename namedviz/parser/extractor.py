@@ -177,11 +177,9 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
         for zone in server.zones:
             # Master → Slave relationships (arrow = direction of authority / data flow)
             if zone.zone_type in ("slave", "secondary"):
-                for ip in zone.masters:
-                    # Try to resolve IP to a known server that masters this zone
-                    master = master_zones.get(zone.name)
-                    if master is None:
-                        master = _resolve_ip(ip, servers, server_names, ip_to_server)
+                # Phase 1: prefer zone-name match (reliable when master is loaded).
+                master = master_zones.get(zone.name)
+                if master is not None:
                     relationships.append(Relationship(
                         source=master,
                         target=server.name,
@@ -189,6 +187,20 @@ def resolve_relationships(servers: list[ServerConfig]) -> list[Relationship]:
                         zone_name=zone.name,
                         view_name=zone.view or "",
                     ))
+                else:
+                    # Phase 2: master not loaded; resolve each unique masters IP.
+                    seen: set[str] = set()
+                    for ip in zone.masters:
+                        src = _resolve_ip(ip, servers, server_names, ip_to_server)
+                        if src not in seen:
+                            seen.add(src)
+                            relationships.append(Relationship(
+                                source=src,
+                                target=server.name,
+                                rel_type="master_slave",
+                                zone_name=zone.name,
+                                view_name=zone.view or "",
+                            ))
 
             # Also-notify relationships (master notifies others)
             if zone.zone_type in ("master", "primary"):

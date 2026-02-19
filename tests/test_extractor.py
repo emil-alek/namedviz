@@ -274,6 +274,46 @@ def test_resolve_relationships_view_servers():
     assert all(r.zone_name == "" for r in peer_rels)
 
 
+def test_resolve_relationships_no_duplicate_when_zone_name_matches():
+    """Zone-name match should produce exactly one master_slave relationship."""
+    server1 = ServerConfig(name="master", zones=[
+        Zone(name="example.com", zone_type="master", server_name="master"),
+    ])
+    server2 = ServerConfig(name="slave", zones=[
+        Zone(name="example.com", zone_type="slave", server_name="slave",
+             masters=["10.0.0.1", "10.0.0.2"]),  # two IPs, but one master server
+    ])
+    rels = [r for r in resolve_relationships([server1, server2])
+            if r.rel_type == "master_slave"]
+    assert len(rels) == 1
+    assert rels[0].source == "master"
+    assert rels[0].target == "slave"
+
+
+def test_resolve_relationships_multiple_masters_no_zone_match():
+    """When zone-name match fails, each unique IP generates a relationship."""
+    server1 = ServerConfig(name="slave", zones=[
+        Zone(name="example.com", zone_type="slave", server_name="slave",
+             masters=["10.0.0.1", "10.0.0.2"]),
+    ])
+    rels = [r for r in resolve_relationships([server1])
+            if r.rel_type == "master_slave"]
+    assert len(rels) == 2
+    sources = {r.source for r in rels}
+    assert sources == {"10.0.0.1", "10.0.0.2"}
+
+
+def test_resolve_relationships_dedup_same_ip_twice():
+    """Duplicate IPs in masters list should not create duplicate relationships."""
+    server1 = ServerConfig(name="slave", zones=[
+        Zone(name="example.com", zone_type="slave", server_name="slave",
+             masters=["10.0.0.1", "10.0.0.1"]),
+    ])
+    rels = [r for r in resolve_relationships([server1])
+            if r.rel_type == "master_slave"]
+    assert len(rels) == 1
+
+
 def test_extract_all_sample_configs():
     sample_path = os.path.join(os.path.dirname(__file__), "..", "sample_configs")
     if not os.path.isdir(sample_path):
