@@ -217,17 +217,15 @@
             overlay.classList.remove('hidden');
         });
 
-        // Close overlay with Escape or clicking outside (only if data is already loaded)
+        // Close overlay with Escape or clicking outside
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && !overlay.classList.contains('hidden')) {
-                if (graphData && graphData.servers.length) {
-                    overlay.classList.add('hidden');
-                }
+                overlay.classList.add('hidden');
             }
         });
 
         overlay.addEventListener('click', (e) => {
-            if (e.target === overlay && graphData && graphData.servers.length) {
+            if (e.target === overlay) {
                 overlay.classList.add('hidden');
             }
         });
@@ -528,33 +526,9 @@
             document.getElementById('upload-overlay').classList.remove('hidden');
         });
 
-        // Export dropdown
-        const exportBtn = document.getElementById('btn-export');
-        const exportDropdown = document.getElementById('export-dropdown');
-
-        exportBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            exportDropdown.classList.toggle('hidden');
-        });
-
-        document.addEventListener('click', () => {
-            exportDropdown.classList.add('hidden');
-        });
-
-        exportDropdown.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-
-        document.getElementById('btn-export-svg').addEventListener('click', () => {
-            const svgEl = Graph.getSvgElement();
-            if (svgEl) Export.downloadSvg(svgEl);
-            exportDropdown.classList.add('hidden');
-        });
-
         document.getElementById('btn-export-png').addEventListener('click', () => {
             const svgEl = Graph.getSvgElement();
             if (svgEl) Export.downloadPng(svgEl);
-            exportDropdown.classList.add('hidden');
         });
 
         const detailPanel = document.getElementById('detail-panel');

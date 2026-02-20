@@ -17,14 +17,8 @@
             <h1><span>named</span>viz</h1>
             <div class="header-actions">
                 <button id="btn-upload" title="Upload config files">Upload Configs</button>
-                <button id="btn-reset" title="Reset and start over">Reset</button>
-                <div class="export-menu">
-                    <button id="btn-export" title="Export diagram">Export</button>
-                    <div id="export-dropdown" class="export-dropdown hidden">
-                        <button id="btn-export-svg">Export SVG</button>
-                        <button id="btn-export-png">Export PNG</button>
-                    </div>
-                </div>
+                <button id="btn-reset" title="Clear and start over">Clear</button>
+                <button id="btn-export-png" title="Export diagram as PNG">Export PNG</button>
             </div>
         </div>
         <div class="header-right">
@@ -76,7 +70,8 @@
     <div id="upload-overlay" class="upload-overlay">
         <div class="upload-modal">
             <h2>Upload <span class="upload-named-conf">named.conf</span> Files</h2>
-            <p>Drag folders from your file explorer, or browse below. Each folder = one server. Server names can be edited.</p>
+            <p>Drag folders from your file explorer, or browse below.<br>
+                Each folder = one server. Server names can be edited.</p>
             <div id="upload-file-list" class="upload-file-list"></div>
             <div id="upload-error" class="upload-error hidden"></div>
             <div class="upload-drop-zone" id="upload-drop-zone">
@@ -102,8 +97,8 @@
             <h2>About <span class="accent">named</span>viz</h2>
             <div class="modal-body">
                 <p>
-                    <strong><span class="accent">named</span>viz</strong> is a visual analysis tool for BIND DNS infrastructure. It parses
-                    <code>named.conf</code> configuration files — including all referenced include files — from
+                    <strong><span class="accent">named</span>viz</strong> is a visual analysis tool for BIND DNS infrastructure.<br> It parses
+                    <code>named.conf</code> configuration files, including all referenced <code>include</code> statements, from
                     one or more DNS servers and generates an interactive data flow graph showing the
                     zone relationships and peering between them.
                 </p>
@@ -117,20 +112,20 @@
                 </ul>
                 <h3>How to use</h3>
                 <ul>
-                    <li>Upload one or more named folders — each folder represents one DNS server and should contain its <code>named.conf</code> plus any include files (e.g. <code>zones/</code>)</li>
+                    <li>Upload one or more named folders, each folder represents one DNS server and should contain its <code>named.conf</code> plus any include files</li>
                     <li>Click <strong>Parse & Visualize</strong> to generate the diagram</li>
                     <li>Hover over nodes and edges for details, click for full info</li>
                     <li>Use sidebar filters to focus on specific relationships or servers</li>
-                    <li>Export the diagram as SVG or PNG</li>
+                    <li>Export the diagram as PNG</li>
                 </ul>
                 <div class="modal-disclaimer">
                     <h3>Privacy / Disclaimer</h3>
                     <p>
-                        Uploaded files are stored temporarily on the server for parsing and are removed when you click Reset. No data is sent to third parties.
+                        Files are stored temporarily for processing and are immediately deleted once parsing is complete. Your data is never shared with third parties.
                     </p>
                     <p>
-                        While we strive for 100% accuracy, always verify results before implementation.
-                        Use at your own risk.
+                        While we strive for 100% accuracy, please verify all outputs before implementation. 
+                        Use of this tool is at your own discretion.
                     </p>
                 </div>
             </div>

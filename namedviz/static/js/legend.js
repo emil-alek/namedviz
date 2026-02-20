@@ -104,5 +104,5 @@ const Legend = (() => {
         });
     }
 
-    return { render };
+    return { render, getLegendItems: () => ({ LINK_ITEMS, NODE_ITEMS }) };
 })();
