@@ -243,3 +243,29 @@ def test_parse_listen_on_with_any():
     assert len(options) == 1
     listen = list(options[0]["listen_on"])
     assert "any" in listen
+
+
+def test_parse_notify_source():
+    text = '''
+    options {
+        notify-source 10.9.0.5 port 53;
+    };
+    '''
+    result = parse_named_conf(text)
+    options = [r for r in result if r.getName() == "options"]
+    assert len(options) == 1
+    notify_source = list(options[0]["notify_source"])
+    assert notify_source == ["10.9.0.5"]
+
+
+def test_parse_transfer_source():
+    text = '''
+    options {
+        transfer-source 10.9.0.6;
+    };
+    '''
+    result = parse_named_conf(text)
+    options = [r for r in result if r.getName() == "options"]
+    assert len(options) == 1
+    transfer_source = list(options[0]["transfer_source"])
+    assert transfer_source == ["10.9.0.6"]

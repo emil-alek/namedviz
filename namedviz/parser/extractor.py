@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from ..models import ServerConfig, Zone, Relationship
 from .loader import discover_configs, load_and_parse
 
@@ -119,6 +121,15 @@ def _extract_options(config: ServerConfig, item):
             ip for ip in ips if ip not in ("any", "none", "localhost")
         )
 
+    if not config.listen_on:
+        for key in ("notify_source", "transfer_source"):
+            ips = list(item.get(key, []))
+            config.listen_on.extend(
+                ip for ip in ips if ip not in ("any", "none", "localhost", "*")
+            )
+            if config.listen_on:
+                break  # first source that yields an IP wins
+
 
 def extract_all(config_path: str) -> tuple[list[ServerConfig], list[dict]]:
     """Discover, parse, and extract all server configs from a path.
@@ -128,8 +139,11 @@ def extract_all(config_path: str) -> tuple[list[ServerConfig], list[dict]]:
     configs = discover_configs(config_path)
     servers = []
     all_logs: list[dict] = []
+    config_base = Path(config_path)
     for server_name, file_path in configs.items():
-        results, logs = load_and_parse(file_path)
+        server_root_candidate = config_base / server_name
+        root_dir = str(server_root_candidate) if server_root_candidate.is_dir() else None
+        results, logs = load_and_parse(file_path, root_dir=root_dir)
         server = extract_server_config(server_name, results)
         servers.append(server)
         for entry in logs:
@@ -141,6 +155,14 @@ def extract_all(config_path: str) -> tuple[list[ServerConfig], list[dict]]:
             "level": "info",
             "message": f"[{server_name}] Parsed {len(server.zones)} zone(s)",
         })
+    # Warn about server directories that had no named.conf at all
+    if config_base.is_dir():
+        for entry in sorted(config_base.iterdir()):
+            if entry.is_dir() and entry.name not in configs:
+                all_logs.append({
+                    "level": "warn",
+                    "message": f"[{entry.name}] No named.conf found — folder skipped",
+                })
     return servers, all_logs
 
 

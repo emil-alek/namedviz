@@ -146,12 +146,28 @@ options_listen_on = pp.Group(
     + LBRACE + pp.ZeroOrMore((ip_addr | value) + SEMI) + RBRACE + SEMI
 )("listen_on")
 
+options_notify_source = pp.Group(
+    pp.Suppress(pp.Keyword("notify-source"))
+    + (ip_addr | value)
+    + pp.Optional(pp.Suppress(pp.Keyword("port") + value))
+    + SEMI
+)("notify_source")
+
+options_transfer_source = pp.Group(
+    pp.Suppress(pp.Keyword("transfer-source"))
+    + (ip_addr | value)
+    + pp.Optional(pp.Suppress(pp.Keyword("port") + value))
+    + SEMI
+)("transfer_source")
+
 options_body_stmt = (
     options_forwarders
     | options_also_notify
     | options_allow_transfer
     | options_listen_on_v6
     | options_listen_on
+    | options_notify_source
+    | options_transfer_source
     | unknown_stmt
 )
 

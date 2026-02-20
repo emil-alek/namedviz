@@ -314,6 +314,50 @@ def test_resolve_relationships_dedup_same_ip_twice():
     assert len(rels) == 1
 
 
+def test_extract_notify_source_fallback():
+    """notify-source IP should populate listen_on when listen-on is absent."""
+    from namedviz.parser.grammar import parse_named_conf
+
+    text = '''
+    options {
+        notify-source 10.9.0.5;
+    };
+    '''
+    results = parse_named_conf(text)
+    config = extract_server_config("test-server", results)
+    assert config.listen_on == ["10.9.0.5"]
+
+
+def test_extract_transfer_source_fallback():
+    """transfer-source IP should populate listen_on when listen-on is absent."""
+    from namedviz.parser.grammar import parse_named_conf
+
+    text = '''
+    options {
+        transfer-source 10.9.0.6;
+    };
+    '''
+    results = parse_named_conf(text)
+    config = extract_server_config("test-server", results)
+    assert config.listen_on == ["10.9.0.6"]
+
+
+def test_extract_listen_on_takes_priority():
+    """listen-on should take priority over notify-source."""
+    from namedviz.parser.grammar import parse_named_conf
+
+    text = '''
+    options {
+        listen-on { 10.0.0.1; };
+        notify-source 10.9.0.5;
+    };
+    '''
+    results = parse_named_conf(text)
+    config = extract_server_config("test-server", results)
+    assert config.listen_on == ["10.0.0.1"]
+    assert "10.9.0.5" not in config.listen_on
+
+
 def test_extract_all_sample_configs():
     sample_path = os.path.join(os.path.dirname(__file__), "..", "sample_configs")
     if not os.path.isdir(sample_path):
