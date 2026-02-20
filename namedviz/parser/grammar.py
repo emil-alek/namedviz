@@ -40,7 +40,7 @@ bare_word = pp.Regex(r'[A-Za-z0-9_./:\-!]+')
 value = quoted_string | bare_word
 
 # IP address (with optional port and TSIG key, we just grab the IP)
-ip_addr = pp.Regex(r'[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
+ip_addr = pp.Regex(r'[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(?:/[0-9]+)?')
 
 # ---------- helpers ----------
 
@@ -59,9 +59,10 @@ def _ip_list(name: str):
 
     # Suppress optional port/key qualifiers that may follow each entry:
     #   masters { 10.0.0.1 port 5353 key "mykey"; };
-    _port_qual = pp.Optional(pp.Suppress(pp.Keyword("port") + value))
-    _key_qual  = pp.Optional(pp.Suppress(pp.Keyword("key") + value))
-    item = (ip_addr | value) + _port_qual + _key_qual
+    _port_qual  = pp.Optional(pp.Suppress(pp.Keyword("port") + value))
+    _key_qual   = pp.Optional(pp.Suppress(pp.Keyword("key") + value))
+    _key_entry  = pp.Suppress(pp.Keyword("key") + value)   # standalone: key name;
+    item = _key_entry | ((ip_addr | value) + _port_qual + _key_qual)
     return pp.Group(
         pp.Suppress(key_keyword)
         + LBRACE

@@ -1,7 +1,7 @@
 """Tests for the pyparsing grammar."""
 
 import pytest
-from namedviz.parser.grammar import parse_named_conf
+from namedviz.parser.grammar import named_conf, parse_named_conf
 
 
 def test_parse_basic_zone():
@@ -269,3 +269,19 @@ def test_parse_transfer_source():
     assert len(options) == 1
     transfer_source = list(options[0]["transfer_source"])
     assert transfer_source == ["10.9.0.6"]
+
+
+def test_ip_list_key_only_entry():
+    """Key-only allow-transfer entry suppressed; preceding IP is captured."""
+    conf = 'zone "z" { type master; allow-transfer { 127.0.0.2; key VIEW100925l; }; };'
+    result = named_conf.parse_string(conf, parse_all=True)
+    at = result[0]["allow_transfer"]
+    assert list(at) == ["127.0.0.2"]
+
+
+def test_ip_list_cidr_entry():
+    """CIDR allow-transfer entry captured without breaking the parse."""
+    conf = 'zone "z" { type master; allow-transfer { 192.168.64.0/24; }; };'
+    result = named_conf.parse_string(conf, parse_all=True)
+    at = result[0]["allow_transfer"]
+    assert "192.168.64.0/24" in list(at)

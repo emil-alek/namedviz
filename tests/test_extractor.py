@@ -358,6 +358,15 @@ def test_extract_listen_on_takes_priority():
     assert "10.9.0.5" not in config.listen_on
 
 
+def test_allow_transfer_with_key_entry():
+    """IP before a key-only entry in allow-transfer still creates a relationship."""
+    results, _ = load_and_parse(os.path.join(CONFDATA, "with_key_allow_transfer", "named.conf"))
+    config = extract_server_config("test-server", results)
+    zone = next(z for z in config.zones if z.name == "example.com")
+    assert "127.0.0.2" in zone.allow_transfer
+    assert "key" not in zone.allow_transfer  # the literal word "key" must not leak through
+
+
 def test_extract_all_sample_configs():
     sample_path = os.path.join(os.path.dirname(__file__), "..", "sample_configs")
     if not os.path.isdir(sample_path):
