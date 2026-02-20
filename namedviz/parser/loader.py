@@ -29,11 +29,14 @@ def discover_configs(config_path: str) -> dict[str, str]:
     # Check for subdirectory mode first
     for entry in sorted(p.iterdir()):
         if entry.is_dir():
-            for conf_name in ("named.conf", "named.conf.local"):
-                conf_file = entry / conf_name
-                if conf_file.is_file():
-                    configs[entry.name] = str(conf_file)
-                    break
+            conf_file = entry / "named.conf"
+            if conf_file.is_file():
+                configs[entry.name] = str(conf_file)
+            else:
+                # named.conf is in a subdirectory — search recursively
+                hits = sorted(entry.rglob("named.conf"))
+                if hits:
+                    configs[entry.name] = str(hits[0])
 
     # If no subdirs found, try flat file mode
     if not configs:
@@ -44,13 +47,17 @@ def discover_configs(config_path: str) -> dict[str, str]:
     return configs
 
 
-def load_and_parse(file_path: str) -> tuple[dict, list[dict]]:
+def load_and_parse(file_path: str, root_dir: str | None = None) -> tuple[dict, list[dict]]:
     """Load a named.conf, resolve includes, parse, and return (results, logs).
 
     Each log entry is a dict with 'level' ('info' or 'warn') and 'message'.
+    root_dir overrides the default include-resolution base (the directory
+    containing file_path).  Pass the top-level server directory so that
+    includes resolve correctly when named.conf lives in a subdirectory.
     """
     logs: list[dict] = []
-    root_dir = os.path.dirname(os.path.realpath(file_path))
+    if root_dir is None:
+        root_dir = os.path.dirname(os.path.realpath(file_path))
     text = _resolve_includes(file_path, root_dir=root_dir, logs=logs)
     results = parse_named_conf(text)
     for keyword in get_unknown_warnings():

@@ -299,10 +299,14 @@
                     showLogs(result.logs || []);
                     await loadGraph();
                 } else {
-                    alert('Parse error: ' + (result.error || 'Unknown error'));
+                    const errorEl = document.getElementById('upload-error');
+                    errorEl.textContent = result.error || 'Unknown error';
+                    errorEl.classList.remove('hidden');
                 }
             } catch (err) {
-                alert('Upload failed: ' + err.message);
+                const errorEl = document.getElementById('upload-error');
+                errorEl.textContent = 'Upload failed: ' + err.message;
+                errorEl.classList.remove('hidden');
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Parse & Visualize';
@@ -657,13 +661,15 @@
     function setupLogPanel() {
         const panel = document.getElementById('log-panel');
         if (!panel) return;
-        document.getElementById('log-toggle').addEventListener('click', () => {
+        document.querySelector('#log-panel .log-header').addEventListener('click', () => {
             panel.classList.toggle('collapsed');
         });
         document.getElementById('log-verbosity').addEventListener('change', () => {
             renderLogs();
         });
-        document.getElementById('log-export').addEventListener('click', () => {
+        document.getElementById('log-verbosity').addEventListener('click', e => e.stopPropagation());
+        document.getElementById('log-export').addEventListener('click', e => {
+            e.stopPropagation();
             exportLogs();
         });
     }
@@ -693,7 +699,7 @@
         }
 
         panel.classList.remove('hidden');
-        panel.classList.remove('collapsed');
+        panel.classList.add('collapsed');
         renderLogs();
     }
 

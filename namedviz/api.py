@@ -227,11 +227,16 @@ def upload_configs():
         warnings = _parse_configs(current_app)
         _save_logs(warnings)
         graph_data = current_app.config.get("GRAPH_DATA")
+        if not (graph_data and graph_data.servers):
+            return jsonify({
+                "error": "No named.conf found in the uploaded folder(s). "
+                         "Make sure your BIND configuration folder contains a named.conf file."
+            }), 400
         return jsonify({
             "status": "ok",
-            "servers": graph_data.servers if graph_data else [],
-            "node_count": len(graph_data.nodes) if graph_data else 0,
-            "link_count": len(graph_data.links) if graph_data else 0,
+            "servers": graph_data.servers,
+            "node_count": len(graph_data.nodes),
+            "link_count": len(graph_data.links),
             "logs": warnings,
         })
     except Exception as e:

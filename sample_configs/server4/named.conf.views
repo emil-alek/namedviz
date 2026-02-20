@@ -9,7 +9,8 @@ view "internal" {
 	
 	zone "test.corp.local" {
     type master;
-    file "/var/cache/bind/db.dev.corp.local";
+	file "/var/cache/bind/db.dev.corp.local";
+	allow-transfer { 127.0.0.2; key VIEW100925l; };
 };
 	
 	

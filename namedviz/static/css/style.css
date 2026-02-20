@@ -1067,6 +1067,11 @@ button.primary:hover {
     padding: 8px 12px;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+    cursor: pointer;
+}
+
+.log-panel.collapsed .log-header {
+    border-bottom: none;
 }
 
 .header-actions {
