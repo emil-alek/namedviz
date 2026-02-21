@@ -18,6 +18,15 @@ def client():
         yield client
 
 
+@pytest.fixture
+def fresh_client():
+    """Test client with no preloaded configs."""
+    app = create_app(None)
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        yield client
+
+
 def test_index(client):
     resp = client.get("/")
     assert resp.status_code == 200
@@ -110,23 +119,27 @@ def test_reparse(client):
 
 
 def test_reset(client):
-    # Verify data exists before reset
-    resp = client.get("/api/graph")
-    data = json.loads(resp.data)
-    assert len(data["servers"]) > 0
+    # Upload 1-server config to establish session data
+    conf_path = os.path.join(CONFDATA, "basic", "named.conf")
+    with open(conf_path, "rb") as f:
+        conf_content = f.read()
 
-    # Reset
+    data = {"myserver": (io.BytesIO(conf_content), "named.conf")}
+    resp = client.post("/api/upload", data=data, content_type="multipart/form-data")
+    assert resp.status_code == 200
+
+    # Session should now show 1 server
+    resp = client.get("/api/graph")
+    assert len(json.loads(resp.data)["servers"]) == 1
+
+    # Reset clears session data
     resp = client.post("/api/reset")
     assert resp.status_code == 200
-    data = json.loads(resp.data)
-    assert data["status"] == "ok"
+    assert json.loads(resp.data)["status"] == "ok"
 
-    # Verify graph is now empty
+    # Falls back to defaults (4 sample servers)
     resp = client.get("/api/graph")
-    data = json.loads(resp.data)
-    assert data["servers"] == []
-    assert data["nodes"] == []
-    assert data["links"] == []
+    assert len(json.loads(resp.data)["servers"]) == 4
 
 
 def test_upload_configs(client):
@@ -193,3 +206,70 @@ def test_upload_returns_logs(client):
     assert len(result["logs"]) > 0
     assert any("missing-zones.conf" in log["message"]
                for log in result["logs"] if log["level"] == "warn")
+
+
+def test_sessions_are_isolated():
+    """Two clients on the same app see independent data."""
+    app = create_app(SAMPLE_CONFIGS)
+    app.config["TESTING"] = True
+
+    conf_path = os.path.join(CONFDATA, "basic", "named.conf")
+    with open(conf_path, "rb") as f:
+        conf_content = f.read()
+
+    with app.test_client() as client1:
+        with app.test_client() as client2:
+            # Client 1 uploads a 1-server config
+            data = {"myserver": (io.BytesIO(conf_content), "named.conf")}
+            resp = client1.post("/api/upload", data=data,
+                                content_type="multipart/form-data")
+            assert resp.status_code == 200
+
+            # Client 1 sees its own 1 server
+            resp = client1.get("/api/graph")
+            assert len(json.loads(resp.data)["servers"]) == 1
+
+            # Client 2 (no cookie, no upload) sees 4 default servers
+            resp = client2.get("/api/graph")
+            assert len(json.loads(resp.data)["servers"]) == 4
+
+
+def test_upload_dir_persists_after_upload():
+    """Upload dir should still exist on disk after upload (cleanup is deferred)."""
+    app = create_app(None)
+    app.config["TESTING"] = True
+
+    conf_path = os.path.join(CONFDATA, "basic", "named.conf")
+    with open(conf_path, "rb") as f:
+        conf_content = f.read()
+
+    with app.test_client() as client:
+        data = {"testserver": (io.BytesIO(conf_content), "named.conf")}
+        resp = client.post("/api/upload", data=data,
+                           content_type="multipart/form-data")
+        assert resp.status_code == 200
+
+        store = app.config["SESSION_STORE"]
+        assert len(store) == 1
+        sd = next(iter(store.values()))
+        assert sd.upload_dir is not None
+        assert os.path.isdir(sd.upload_dir)
+
+
+def test_reset_restores_defaults(client):
+    """After reset, GET /api/graph returns default server count, not empty."""
+    # Upload a 1-server config
+    conf_path = os.path.join(CONFDATA, "basic", "named.conf")
+    with open(conf_path, "rb") as f:
+        conf_content = f.read()
+
+    data = {"testserver": (io.BytesIO(conf_content), "named.conf")}
+    client.post("/api/upload", data=data, content_type="multipart/form-data")
+
+    resp = client.get("/api/graph")
+    assert len(json.loads(resp.data)["servers"]) == 1
+
+    client.post("/api/reset")
+
+    resp = client.get("/api/graph")
+    assert len(json.loads(resp.data)["servers"]) == 4

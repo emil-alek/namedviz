@@ -6,12 +6,16 @@ import logging
 import os
 import shutil
 import tempfile
+import time
 import traceback
+import uuid
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
+
+from .models import SessionData
 
 log = logging.getLogger(__name__)
 
@@ -54,6 +58,43 @@ def _save_logs(logs):
     _prune_logs(log_dir)
 
 
+def _get_or_create_session():
+    """Read cookie or create new session. Returns (sid, SessionData)."""
+    store = current_app.config["SESSION_STORE"]
+    sid = request.cookies.get("namedviz_session")
+    if sid and sid in store:
+        store[sid].last_access = time.time()
+        return sid, store[sid]
+    sid = str(uuid.uuid4())
+    sd = SessionData()
+    store[sid] = sd
+    return sid, sd
+
+
+def _get_session_data():
+    """Read-only lookup, no creation. Returns (sid|None, SessionData|None)."""
+    store = current_app.config["SESSION_STORE"]
+    sid = request.cookies.get("namedviz_session")
+    if sid and sid in store:
+        store[sid].last_access = time.time()
+        return sid, store[sid]
+    return None, None
+
+
+def _set_session_cookie(response, session_id):
+    response.set_cookie("namedviz_session", session_id,
+                        max_age=3600, httponly=True, samesite="Lax")
+    return response
+
+
+def _effective_data(sd):
+    """Return (servers, graph_data) — session's own if present, else defaults."""
+    if sd and sd.servers:
+        return sd.servers, sd.graph_data
+    return (current_app.config.get("DEFAULT_SERVERS", []),
+            current_app.config.get("DEFAULT_GRAPH_DATA"))
+
+
 @api_bp.route("/")
 def index():
     return send_from_directory(current_app.static_folder, "index.html")
@@ -61,7 +102,8 @@ def index():
 
 @api_bp.route("/api/graph")
 def get_graph():
-    graph_data = current_app.config.get("GRAPH_DATA")
+    _, sd = _get_session_data()
+    _, graph_data = _effective_data(sd)
     if graph_data is None:
         return jsonify({"nodes": [], "links": [], "zones": [], "servers": []})
     return jsonify(asdict(graph_data))
@@ -69,7 +111,8 @@ def get_graph():
 
 @api_bp.route("/api/server/<name>")
 def get_server(name):
-    servers = current_app.config.get("SERVERS", [])
+    _, sd = _get_session_data()
+    servers, _ = _effective_data(sd)
     for server in servers:
         if server.name == name:
             return jsonify({
@@ -98,7 +141,8 @@ def get_server(name):
 
 @api_bp.route("/api/zones")
 def get_zones():
-    servers = current_app.config.get("SERVERS", [])
+    _, sd = _get_session_data()
+    servers, _ = _effective_data(sd)
     zones = []
     for server in servers:
         for z in server.zones:
@@ -132,34 +176,33 @@ def parse_configs():
         return jsonify({"error": "No config path provided"}), 400
 
     try:
-        from .app import _parse_configs
-        current_app.config["CONFIG_PATH"] = config_path
-        warnings = _parse_configs(current_app)
+        from .app import _parse_configs_for_session
+        sid, sd = _get_or_create_session()
+        servers, graph_data, warnings = _parse_configs_for_session(config_path)
+        sd.servers, sd.graph_data = servers, graph_data
         _save_logs(warnings)
-        graph_data = current_app.config.get("GRAPH_DATA")
-        return jsonify({
+        resp = jsonify({
             "status": "ok",
             "servers": graph_data.servers if graph_data else [],
             "node_count": len(graph_data.nodes) if graph_data else 0,
             "link_count": len(graph_data.links) if graph_data else 0,
             "logs": warnings,
         })
+        return _set_session_cookie(resp, sid)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @api_bp.route("/api/reset", methods=["POST"])
 def reset():
-    """Clear all parsed data and clean up temp upload directory."""
-    upload_dir = current_app.config.get("UPLOAD_DIR")
-    if upload_dir and os.path.isdir(upload_dir):
-        shutil.rmtree(upload_dir, ignore_errors=True)
-
-    current_app.config.pop("CONFIG_PATH", None)
-    current_app.config.pop("UPLOAD_DIR", None)
-    current_app.config.pop("SERVERS", None)
-    current_app.config.pop("GRAPH_DATA", None)
-
+    """Clear session data; subsequent requests fall back to defaults."""
+    _, sd = _get_session_data()
+    if sd:
+        if sd.upload_dir and os.path.isdir(sd.upload_dir):
+            shutil.rmtree(sd.upload_dir, ignore_errors=True)
+        sd.upload_dir = None
+        sd.servers = []
+        sd.graph_data = None
     return jsonify({"status": "ok"})
 
 
@@ -174,9 +217,18 @@ def upload_configs():
     if not request.files:
         return jsonify({"error": "No files uploaded"}), 400
 
+    sid, sd = _get_or_create_session()
+
+    # Clear previous upload dir for this session on re-upload
+    if sd.upload_dir and os.path.isdir(sd.upload_dir):
+        shutil.rmtree(sd.upload_dir, ignore_errors=True)
+        sd.upload_dir = None
+        sd.servers = []
+        sd.graph_data = None
+
     # Create a temp directory with server subdirectories
     upload_dir = tempfile.mkdtemp(prefix="namedviz_")
-    current_app.config["UPLOAD_DIR"] = upload_dir
+    sd.upload_dir = upload_dir   # claim ownership before parsing
 
     # Group files by server name
     server_files: dict[str, list] = {}
@@ -221,29 +273,25 @@ def upload_configs():
                 file.save(file_path)
                 log.info("  saved OK")
 
-        log.info("All files saved. Running _parse_configs on %s", upload_dir)
-        from .app import _parse_configs
-        current_app.config["CONFIG_PATH"] = upload_dir
-        warnings = _parse_configs(current_app)
+        log.info("All files saved. Running _parse_configs_for_session on %s", upload_dir)
+        from .app import _parse_configs_for_session
+        servers, graph_data, warnings = _parse_configs_for_session(upload_dir)
+        sd.servers, sd.graph_data = servers, graph_data
         _save_logs(warnings)
-        graph_data = current_app.config.get("GRAPH_DATA")
         if not (graph_data and graph_data.servers):
             return jsonify({
                 "error": "No named.conf found in the uploaded folder(s). "
                          "Make sure your BIND configuration folder contains a named.conf file."
             }), 400
-        return jsonify({
+        resp = jsonify({
             "status": "ok",
             "servers": graph_data.servers,
             "node_count": len(graph_data.nodes),
             "link_count": len(graph_data.links),
             "logs": warnings,
         })
+        return _set_session_cookie(resp, sid)
     except Exception as e:
         tb = traceback.format_exc()
         log.exception("Upload failed")
         return jsonify({"error": str(e), "traceback": tb}), 500
-    finally:
-        shutil.rmtree(upload_dir, ignore_errors=True)
-        current_app.config.pop("UPLOAD_DIR", None)
-        current_app.config.pop("CONFIG_PATH", None)

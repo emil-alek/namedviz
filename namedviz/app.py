@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
+import threading
+import time
 from dataclasses import asdict
 from flask import Flask, Request as FlaskRequest
 
@@ -17,7 +20,7 @@ class _UnlimitedRequest(FlaskRequest):
 def create_app(config_path: str | None = None) -> Flask:
     """Create and configure the Flask app.
 
-    If config_path is provided, configs are parsed on startup.
+    If config_path is provided, configs are parsed on startup into DEFAULT_*.
     """
     app = Flask(__name__, static_folder="static", static_url_path="/static")
     app.request_class = _UnlimitedRequest
@@ -26,30 +29,53 @@ def create_app(config_path: str | None = None) -> Flask:
 
     # Store config path and parsed data in app config
     app.config["CONFIG_PATH"] = config_path
-    app.config["SERVERS"] = []
-    app.config["GRAPH_DATA"] = None
+    app.config["SESSION_STORE"] = {}       # {str: SessionData}
+    app.config["DEFAULT_SERVERS"] = []
+    app.config["DEFAULT_GRAPH_DATA"] = None
 
     app.register_blueprint(api_bp)
 
     if config_path:
         with app.app_context():
-            _parse_configs(app)
+            _load_default_configs(app)
+
+    t = threading.Thread(target=_session_cleanup_loop, args=(app,), daemon=True)
+    t.start()
 
     return app
 
 
-def _parse_configs(app: Flask) -> list[str]:
-    """Parse configs and store results in app config. Returns warnings."""
+def _load_default_configs(app: Flask) -> list[str]:
+    """Parse startup configs into DEFAULT_* keys. Returns warnings."""
     from .parser.extractor import extract_all
     from .graph import build_graph
 
-    config_path = app.config["CONFIG_PATH"]
+    config_path = app.config.get("CONFIG_PATH")
     if not config_path:
         return []
 
     servers, warnings = extract_all(config_path)
-    graph_data = build_graph(servers)
-
-    app.config["SERVERS"] = servers
-    app.config["GRAPH_DATA"] = graph_data
+    app.config["DEFAULT_SERVERS"] = servers
+    app.config["DEFAULT_GRAPH_DATA"] = build_graph(servers)
     return warnings
+
+
+def _parse_configs_for_session(config_path: str):
+    """Pure function: parse configs at path and return (servers, graph_data, warnings)."""
+    from .parser.extractor import extract_all
+    from .graph import build_graph
+
+    servers, warnings = extract_all(config_path)
+    return servers, build_graph(servers), warnings
+
+
+def _session_cleanup_loop(app: Flask) -> None:
+    # CPython GIL makes single-key dict ops atomic; no Lock needed under CPython.
+    while True:
+        time.sleep(600)   # sweep every 10 minutes
+        cutoff = time.time() - 3600
+        store = app.config["SESSION_STORE"]
+        for sid in [s for s, d in list(store.items()) if d.last_access < cutoff]:
+            sd = store.pop(sid, None)
+            if sd and sd.upload_dir:
+                shutil.rmtree(sd.upload_dir, ignore_errors=True)

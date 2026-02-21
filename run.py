@@ -25,8 +25,8 @@ def main():
 
     app = create_app(config_path)
 
-    servers = app.config.get("SERVERS", [])
-    graph = app.config.get("GRAPH_DATA")
+    servers = app.config.get("DEFAULT_SERVERS", [])
+    graph   = app.config.get("DEFAULT_GRAPH_DATA")
     if servers:
         print(f"Found {len(servers)} server(s)")
     if graph:

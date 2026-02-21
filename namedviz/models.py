@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 
@@ -43,3 +44,11 @@ class GraphData:
     links: list[dict] = field(default_factory=list)
     zones: list[dict] = field(default_factory=list)
     servers: list[str] = field(default_factory=list)
+
+
+@dataclass
+class SessionData:
+    servers: list = field(default_factory=list)   # list[ServerConfig]
+    graph_data: object = None                      # GraphData | None
+    upload_dir: str | None = None                  # temp dir, persists for session lifetime
+    last_access: float = field(default_factory=time.time)
