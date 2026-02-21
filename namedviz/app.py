@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import shutil
+import tempfile
 import threading
 import time
 from dataclasses import asdict
+from pathlib import Path
 from flask import Flask, Request as FlaskRequest
 
 from .api import api_bp
@@ -32,6 +35,14 @@ def create_app(config_path: str | None = None) -> Flask:
     app.config["SESSION_STORE"] = {}       # {str: SessionData}
     app.config["DEFAULT_SERVERS"] = []
     app.config["DEFAULT_GRAPH_DATA"] = None
+
+    # Filesystem session registry — shared across all Gunicorn workers
+    session_reg_dir = Path(tempfile.gettempdir()) / "namedviz_sessions"
+    session_reg_dir.mkdir(exist_ok=True)
+    app.config["SESSION_REGISTRY_DIR"] = session_reg_dir
+
+    # Protects in-memory SESSION_STORE mutations within a single worker process
+    app.config["SESSION_LOCK"] = threading.RLock()
 
     app.register_blueprint(api_bp)
 
@@ -70,12 +81,23 @@ def _parse_configs_for_session(config_path: str):
 
 
 def _session_cleanup_loop(app: Flask) -> None:
-    # CPython GIL makes single-key dict ops atomic; no Lock needed under CPython.
     while True:
         time.sleep(600)   # sweep every 10 minutes
         cutoff = time.time() - 3600
+        reg_dir = app.config["SESSION_REGISTRY_DIR"]
         store = app.config["SESSION_STORE"]
-        for sid in [s for s, d in list(store.items()) if d.last_access < cutoff]:
-            sd = store.pop(sid, None)
-            if sd and sd.upload_dir:
-                shutil.rmtree(sd.upload_dir, ignore_errors=True)
+        lock = app.config["SESSION_LOCK"]
+
+        for json_file in list(reg_dir.glob("*.json")):
+            try:
+                if json_file.stat().st_mtime < cutoff:
+                    sid = json_file.stem
+                    meta = json.loads(json_file.read_text())
+                    upload_dir = meta.get("upload_dir")
+                    with lock:
+                        store.pop(sid, None)
+                    if upload_dir:
+                        shutil.rmtree(upload_dir, ignore_errors=True)
+                    json_file.unlink(missing_ok=True)
+            except Exception:
+                pass

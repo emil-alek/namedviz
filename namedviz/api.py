@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -58,26 +59,88 @@ def _save_logs(logs):
     _prune_logs(log_dir)
 
 
+def _session_registry_path(sid: str) -> Path:
+    return Path(current_app.config["SESSION_REGISTRY_DIR"]) / f"{sid}.json"
+
+
+def _persist_session(sid: str, sd) -> None:
+    """Write upload_dir to the shared registry so other workers can find this session."""
+    if not sd.upload_dir:
+        return
+    path = _session_registry_path(sid)
+    path.write_text(json.dumps({"upload_dir": sd.upload_dir}))
+
+
+def _forget_session(sid: str) -> None:
+    _session_registry_path(sid).unlink(missing_ok=True)
+
+
+def _load_session_from_disk(sid: str):
+    """Check the filesystem registry; re-parse upload_dir into a fresh SessionData."""
+    path = _session_registry_path(sid)
+    if not path.exists():
+        return None
+    try:
+        meta = json.loads(path.read_text())
+    except Exception:
+        return None
+    upload_dir = meta.get("upload_dir")
+    if not upload_dir or not os.path.isdir(upload_dir):
+        path.unlink(missing_ok=True)
+        return None
+    from .app import _parse_configs_for_session
+    try:
+        servers, graph_data, _ = _parse_configs_for_session(upload_dir)
+    except Exception:
+        return None
+    return SessionData(servers=servers, graph_data=graph_data, upload_dir=upload_dir)
+
+
 def _get_or_create_session():
     """Read cookie or create new session. Returns (sid, SessionData)."""
     store = current_app.config["SESSION_STORE"]
+    lock = current_app.config["SESSION_LOCK"]
     sid = request.cookies.get("namedviz_session")
-    if sid and sid in store:
-        store[sid].last_access = time.time()
-        return sid, store[sid]
-    sid = str(uuid.uuid4())
-    sd = SessionData()
-    store[sid] = sd
-    return sid, sd
+    with lock:
+        if sid and sid in store:
+            store[sid].last_access = time.time()
+            try:
+                _session_registry_path(sid).touch(exist_ok=True)
+            except OSError:
+                pass
+            return sid, store[sid]
+        # Cache miss — check filesystem (different worker may have created this session)
+        if sid:
+            sd = _load_session_from_disk(sid)
+            if sd:
+                store[sid] = sd
+                return sid, sd
+        # Brand new session
+        sid = str(uuid.uuid4())
+        sd = SessionData()
+        store[sid] = sd
+        return sid, sd
 
 
 def _get_session_data():
     """Read-only lookup, no creation. Returns (sid|None, SessionData|None)."""
     store = current_app.config["SESSION_STORE"]
+    lock = current_app.config["SESSION_LOCK"]
     sid = request.cookies.get("namedviz_session")
-    if sid and sid in store:
-        store[sid].last_access = time.time()
-        return sid, store[sid]
+    if not sid:
+        return None, None
+    with lock:
+        if sid in store:
+            store[sid].last_access = time.time()
+            try:
+                _session_registry_path(sid).touch(exist_ok=True)
+            except OSError:
+                pass
+            return sid, store[sid]
+        sd = _load_session_from_disk(sid)
+        if sd:
+            store[sid] = sd
+            return sid, sd
     return None, None
 
 
@@ -196,13 +259,14 @@ def parse_configs():
 @api_bp.route("/api/reset", methods=["POST"])
 def reset():
     """Clear session data; subsequent requests fall back to defaults."""
-    _, sd = _get_session_data()
+    sid, sd = _get_session_data()
     if sd:
         if sd.upload_dir and os.path.isdir(sd.upload_dir):
             shutil.rmtree(sd.upload_dir, ignore_errors=True)
         sd.upload_dir = None
         sd.servers = []
         sd.graph_data = None
+        _forget_session(sid)
     return jsonify({"status": "ok"})
 
 
@@ -277,6 +341,7 @@ def upload_configs():
         from .app import _parse_configs_for_session
         servers, graph_data, warnings = _parse_configs_for_session(upload_dir)
         sd.servers, sd.graph_data = servers, graph_data
+        _persist_session(sid, sd)
         _save_logs(warnings)
         if not (graph_data and graph_data.servers):
             return jsonify({
