@@ -2,16 +2,18 @@
 
 A visual analysis tool for BIND DNS infrastructure. Upload `named.conf` files from multiple DNS servers and get an interactive force-directed graph showing the relationships between them.
 
+![namedviz demo](demo.png)
+
 ## Features
 
-- **Master/Slave replication** — see which servers replicate zones from which masters
-- **Also-Notify targets** — track zone change notification paths
-- **Allow-Transfer permissions** — visualize AXFR/IXFR transfer rules
-- **Forward zones** — identify zones delegated to external resolvers
-- **Interactive graph** — drag, zoom, hover for details, click for full info
-- **Sidebar filters** — filter by relationship type, server, or zone name
-- **Export** — save the diagram as SVG or PNG
-- **Upload or pre-load** — drag & drop configs in the browser or point to a directory on disk
+- **Master/Slave replication:** see which servers replicate zones from which masters
+- **Also-Notify targets:** track zone change notification paths
+- **Allow-Transfer permissions:** visualize AXFR/IXFR transfer rules
+- **Forward zones:** identify zones delegated to external resolvers
+- **Interactive graph:** drag, zoom, hover for details, click for full info
+- **Sidebar filters:** filter by relationship type, server, or zone name
+- **Export:** save the diagram as PNG
+- **Upload or pre-load:** drag and drop configs in the browser, or point to a directory on disk
 
 ## Installation
 
@@ -40,11 +42,10 @@ python run.py path/to/configs/
 The directory should contain one subdirectory per server, each with a `named.conf` file:
 
 ```
-configs/
-  server1/
-    named.conf
-  server2/
-    named.conf
+server1/
+  named.conf
+server2/
+  named.conf
 ```
 
 Sample configs are included for a quick demo:
