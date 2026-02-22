@@ -69,6 +69,10 @@ def _persist_session(sid: str, sd) -> None:
         return
     path = _session_registry_path(sid)
     path.write_text(json.dumps({"upload_dir": sd.upload_dir}))
+    try:
+        sd.registry_mtime = path.stat().st_mtime
+    except OSError:
+        pass
 
 
 def _forget_session(sid: str) -> None:
@@ -103,9 +107,18 @@ def _get_or_create_session():
     sid = request.cookies.get("namedviz_session")
     with lock:
         if sid and sid in store:
-            store[sid].last_access = time.time()
+            sd = store[sid]
+            sd.last_access = time.time()
             try:
-                _session_registry_path(sid).touch(exist_ok=True)
+                reg_path = _session_registry_path(sid)
+                if reg_path.stat().st_mtime > sd.registry_mtime:
+                    fresh = _load_session_from_disk(sid)
+                    if fresh:
+                        store[sid] = fresh
+                        return sid, fresh
+                    # reload failed (transient) — keep stale rather than returning nothing
+                else:
+                    reg_path.touch(exist_ok=True)
             except OSError:
                 pass
             return sid, store[sid]
@@ -131,9 +144,18 @@ def _get_session_data():
         return None, None
     with lock:
         if sid in store:
-            store[sid].last_access = time.time()
+            sd = store[sid]
+            sd.last_access = time.time()
             try:
-                _session_registry_path(sid).touch(exist_ok=True)
+                reg_path = _session_registry_path(sid)
+                if reg_path.stat().st_mtime > sd.registry_mtime:
+                    fresh = _load_session_from_disk(sid)
+                    if fresh:
+                        store[sid] = fresh
+                        return sid, fresh
+                    # reload failed (transient) — keep stale rather than returning nothing
+                else:
+                    reg_path.touch(exist_ok=True)
             except OSError:
                 pass
             return sid, store[sid]
@@ -283,16 +305,11 @@ def upload_configs():
 
     sid, sd = _get_or_create_session()
 
-    # Clear previous upload dir for this session on re-upload
-    if sd.upload_dir and os.path.isdir(sd.upload_dir):
-        shutil.rmtree(sd.upload_dir, ignore_errors=True)
-        sd.upload_dir = None
-        sd.servers = []
-        sd.graph_data = None
+    # Remember old dir — will delete AFTER new data is ready
+    old_upload_dir = sd.upload_dir if (sd.upload_dir and os.path.isdir(sd.upload_dir)) else None
 
     # Create a temp directory with server subdirectories
     upload_dir = tempfile.mkdtemp(prefix="namedviz_")
-    sd.upload_dir = upload_dir   # claim ownership before parsing
 
     # Group files by server name
     server_files: dict[str, list] = {}
@@ -340,8 +357,17 @@ def upload_configs():
         log.info("All files saved. Running _parse_configs_for_session on %s", upload_dir)
         from .app import _parse_configs_for_session
         servers, graph_data, warnings = _parse_configs_for_session(upload_dir)
-        sd.servers, sd.graph_data = servers, graph_data
+
+        # Atomically swap in-memory state (old data stays live until new data is ready)
+        sd.servers, sd.graph_data, sd.upload_dir = servers, graph_data, upload_dir
+
+        # Persist to registry BEFORE removing old dir
         _persist_session(sid, sd)
+
+        # Now safe to remove old dir
+        if old_upload_dir:
+            shutil.rmtree(old_upload_dir, ignore_errors=True)
+
         _save_logs(warnings)
         if not (graph_data and graph_data.servers):
             return jsonify({
