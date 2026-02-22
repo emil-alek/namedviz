@@ -1,6 +1,6 @@
 # namedviz
 
-A visual analysis tool for BIND DNS infrastructure. Upload `named.conf` files from multiple DNS servers and get an interactive force-directed graph showing the relationships between them.
+A visual analysis tool for BIND DNS infrastructure. Upload `named.conf` files from one or more DNS servers and get an interactive graph showing how all the includes and configurations connect to each other. It turns nested configuration complexity into an intuitive visual map so you can understand DNS structure in seconds instead of hours.
 
 ![namedviz demo](demo.png)
 
