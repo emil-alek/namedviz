@@ -50,6 +50,4 @@ class GraphData:
 class SessionData:
     servers: list = field(default_factory=list)   # list[ServerConfig]
     graph_data: object = None                      # GraphData | None
-    upload_dir: str | None = None                  # temp dir, persists for session lifetime
     last_access: float = field(default_factory=time.time)
-    registry_mtime: float = 0.0   # mtime of {sid}.json when this session was last loaded

@@ -234,27 +234,6 @@ def test_sessions_are_isolated():
             assert len(json.loads(resp.data)["servers"]) == 4
 
 
-def test_upload_dir_persists_after_upload():
-    """Upload dir should still exist on disk after upload (cleanup is deferred)."""
-    app = create_app(None)
-    app.config["TESTING"] = True
-
-    conf_path = os.path.join(CONFDATA, "basic", "named.conf")
-    with open(conf_path, "rb") as f:
-        conf_content = f.read()
-
-    with app.test_client() as client:
-        data = {"testserver": (io.BytesIO(conf_content), "named.conf")}
-        resp = client.post("/api/upload", data=data,
-                           content_type="multipart/form-data")
-        assert resp.status_code == 200
-
-        store = app.config["SESSION_STORE"]
-        assert len(store) == 1
-        sd = next(iter(store.values()))
-        assert sd.upload_dir is not None
-        assert os.path.isdir(sd.upload_dir)
-
 
 def test_reset_restores_defaults(client):
     """After reset, GET /api/graph returns default server count, not empty."""

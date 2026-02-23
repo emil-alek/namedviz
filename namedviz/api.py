@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import shutil
@@ -59,47 +58,6 @@ def _save_logs(logs):
     _prune_logs(log_dir)
 
 
-def _session_registry_path(sid: str) -> Path:
-    return Path(current_app.config["SESSION_REGISTRY_DIR"]) / f"{sid}.json"
-
-
-def _persist_session(sid: str, sd) -> None:
-    """Write upload_dir to the shared registry so other workers can find this session."""
-    if not sd.upload_dir:
-        return
-    path = _session_registry_path(sid)
-    path.write_text(json.dumps({"upload_dir": sd.upload_dir}))
-    try:
-        sd.registry_mtime = path.stat().st_mtime
-    except OSError:
-        pass
-
-
-def _forget_session(sid: str) -> None:
-    _session_registry_path(sid).unlink(missing_ok=True)
-
-
-def _load_session_from_disk(sid: str):
-    """Check the filesystem registry; re-parse upload_dir into a fresh SessionData."""
-    path = _session_registry_path(sid)
-    if not path.exists():
-        return None
-    try:
-        meta = json.loads(path.read_text())
-    except Exception:
-        return None
-    upload_dir = meta.get("upload_dir")
-    if not upload_dir or not os.path.isdir(upload_dir):
-        path.unlink(missing_ok=True)
-        return None
-    from .app import _parse_configs_for_session
-    try:
-        servers, graph_data, _ = _parse_configs_for_session(upload_dir)
-    except Exception:
-        return None
-    return SessionData(servers=servers, graph_data=graph_data, upload_dir=upload_dir)
-
-
 def _get_or_create_session():
     """Read cookie or create new session. Returns (sid, SessionData)."""
     store = current_app.config["SESSION_STORE"]
@@ -109,26 +67,7 @@ def _get_or_create_session():
         if sid and sid in store:
             sd = store[sid]
             sd.last_access = time.time()
-            try:
-                reg_path = _session_registry_path(sid)
-                if reg_path.stat().st_mtime > sd.registry_mtime:
-                    fresh = _load_session_from_disk(sid)
-                    if fresh:
-                        store[sid] = fresh
-                        return sid, fresh
-                    # reload failed (transient) — keep stale rather than returning nothing
-                else:
-                    reg_path.touch(exist_ok=True)
-            except OSError:
-                pass
-            return sid, store[sid]
-        # Cache miss — check filesystem (different worker may have created this session)
-        if sid:
-            sd = _load_session_from_disk(sid)
-            if sd:
-                store[sid] = sd
-                return sid, sd
-        # Brand new session
+            return sid, sd
         sid = str(uuid.uuid4())
         sd = SessionData()
         store[sid] = sd
@@ -143,27 +82,10 @@ def _get_session_data():
     if not sid:
         return None, None
     with lock:
-        if sid in store:
-            sd = store[sid]
-            sd.last_access = time.time()
-            try:
-                reg_path = _session_registry_path(sid)
-                if reg_path.stat().st_mtime > sd.registry_mtime:
-                    fresh = _load_session_from_disk(sid)
-                    if fresh:
-                        store[sid] = fresh
-                        return sid, fresh
-                    # reload failed (transient) — keep stale rather than returning nothing
-                else:
-                    reg_path.touch(exist_ok=True)
-            except OSError:
-                pass
-            return sid, store[sid]
-        sd = _load_session_from_disk(sid)
+        sd = store.get(sid)
         if sd:
-            store[sid] = sd
-            return sid, sd
-    return None, None
+            sd.last_access = time.time()
+        return (sid, sd) if sd else (None, None)
 
 
 def _set_session_cookie(response, session_id):
@@ -280,15 +202,11 @@ def parse_configs():
 
 @api_bp.route("/api/reset", methods=["POST"])
 def reset():
-    """Clear session data; subsequent requests fall back to defaults."""
-    sid, sd = _get_session_data()
-    if sd:
-        if sd.upload_dir and os.path.isdir(sd.upload_dir):
-            shutil.rmtree(sd.upload_dir, ignore_errors=True)
-        sd.upload_dir = None
-        sd.servers = []
-        sd.graph_data = None
-        _forget_session(sid)
+    """Evict session from store; subsequent requests fall back to defaults."""
+    sid, _ = _get_session_data()
+    if sid:
+        with current_app.config["SESSION_LOCK"]:
+            current_app.config["SESSION_STORE"].pop(sid, None)
     return jsonify({"status": "ok"})
 
 
@@ -304,9 +222,6 @@ def upload_configs():
         return jsonify({"error": "No files uploaded"}), 400
 
     sid, sd = _get_or_create_session()
-
-    # Remember old dir — will delete AFTER new data is ready
-    old_upload_dir = sd.upload_dir if (sd.upload_dir and os.path.isdir(sd.upload_dir)) else None
 
     # Create a temp directory with server subdirectories
     upload_dir = tempfile.mkdtemp(prefix="namedviz_")
@@ -357,16 +272,8 @@ def upload_configs():
         log.info("All files saved. Running _parse_configs_for_session on %s", upload_dir)
         from .app import _parse_configs_for_session
         servers, graph_data, warnings = _parse_configs_for_session(upload_dir)
-
-        # Atomically swap in-memory state (old data stays live until new data is ready)
-        sd.servers, sd.graph_data, sd.upload_dir = servers, graph_data, upload_dir
-
-        # Persist to registry BEFORE removing old dir
-        _persist_session(sid, sd)
-
-        # Now safe to remove old dir
-        if old_upload_dir:
-            shutil.rmtree(old_upload_dir, ignore_errors=True)
+        shutil.rmtree(upload_dir, ignore_errors=True)
+        sd.servers, sd.graph_data = servers, graph_data
 
         _save_logs(warnings)
         if not (graph_data and graph_data.servers):

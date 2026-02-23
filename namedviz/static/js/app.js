@@ -10,7 +10,7 @@
     let allLogs = []; // [{level, message}]
     let zoneSuggestionIndex = -1;
 
-    async function init() {
+    function init() {
         Graph.init('#graph-svg', {
             onNodeClick: showNodeDetail,
             onLinkClick: showLinkDetail,
@@ -21,8 +21,6 @@
         setupButtons();
         setupUpload();
         setupLogPanel();
-
-        await loadGraph();
     }
 
     async function loadGraph() {
@@ -497,12 +495,8 @@
     }
 
     function setupButtons() {
-        document.getElementById('btn-reset').addEventListener('click', async () => {
-            try {
-                await fetch('/api/reset', { method: 'POST' });
-            } catch (err) {
-                // Ignore — we clear frontend state regardless
-            }
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            fetch('/api/reset', { method: 'POST' }).catch(() => {});
             graphData = null;
             uploadedFiles = [];
             // Clear graph SVG
