@@ -4,8 +4,8 @@
 (function() {
     const MAX_UPLOAD_FILES = 5000;
     const MAX_UPLOAD_BYTES = 500 * 1024 * 1024; // 500 MB
-    const SESSION_DURATION = 20;   // seconds — must match server cleanup cutoff
-    const WARN_BEFORE     = 10;     // warn 10 minutes before expiry
+    const SESSION_DURATION = 3600;   // seconds — must match server cleanup cutoff
+    const WARN_BEFORE     = 600;     // warn 10 minutes before expiry
 
     let graphData = null;
     let uploadedFiles = []; // [{files: [File, ...], serverName}]
@@ -29,9 +29,7 @@
         _showWarning() {
             this._remaining = WARN_BEFORE;
             this._updateCountdown();
-            if (document.getElementById('upload-overlay').classList.contains('hidden')) {
-                document.getElementById('timeout-modal').classList.remove('hidden');
-            }
+            document.getElementById('timeout-modal').classList.remove('hidden');
             this._countdownInterval = setInterval(() => {
                 this._remaining--;
                 if (this._remaining <= 0) {
@@ -607,16 +605,6 @@
             if (!detailPanel.classList.contains('hidden') && !detailPanel.contains(e.target)) {
                 detailPanel.classList.add('hidden');
             }
-        });
-
-        document.getElementById('timeout-continue').addEventListener('click', () => {
-            fetch('/api/refresh').catch(() => {});
-            SessionManager.reset();
-        });
-
-        document.getElementById('expired-reupload').addEventListener('click', () => {
-            document.getElementById('expired-overlay').classList.add('hidden');
-            document.getElementById('upload-overlay').classList.remove('hidden');
         });
 
         // About modal
