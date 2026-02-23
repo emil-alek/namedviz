@@ -955,6 +955,52 @@ button.primary:hover {
     margin-bottom: 0;
 }
 
+/* ---- Timeout warning modal ---- */
+.timeout-modal-box {
+    text-align: center;
+    padding: 40px 48px;
+    min-width: 300px;
+}
+
+.timeout-modal-box h2 {
+    color: var(--text-primary);
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.timeout-modal-box p {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.timeout-countdown {
+    font-size: 52px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 16px 0;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 2px;
+}
+
+.timeout-continue-btn {
+    margin-top: 16px;
+    padding: 10px 28px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition);
+}
+
+.timeout-continue-btn:hover {
+    background: var(--accent-hover);
+}
+
 /* ---- D3 node styles ---- */
 .node-server {
     cursor: pointer;

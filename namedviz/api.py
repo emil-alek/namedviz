@@ -175,6 +175,12 @@ def get_zones():
     return jsonify(zones)
 
 
+@api_bp.route("/api/refresh")
+def refresh_session():
+    _get_session_data()
+    return jsonify({"status": "ok"})
+
+
 @api_bp.route("/api/parse", methods=["POST"])
 def parse_configs():
     data = request.get_json(silent=True) or {}

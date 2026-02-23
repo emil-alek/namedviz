@@ -4,11 +4,78 @@
 (function() {
     const MAX_UPLOAD_FILES = 5000;
     const MAX_UPLOAD_BYTES = 500 * 1024 * 1024; // 500 MB
+    const SESSION_DURATION = 20;   // seconds — must match server cleanup cutoff
+    const WARN_BEFORE     = 10;     // warn 10 minutes before expiry
 
     let graphData = null;
     let uploadedFiles = []; // [{files: [File, ...], serverName}]
     let allLogs = []; // [{level, message}]
     let zoneSuggestionIndex = -1;
+
+    const SessionManager = {
+        _warnTimer:         null,
+        _countdownInterval: null,
+        _remaining:         0,
+
+        // Call after any API call that refreshes the server session.
+        reset() {
+            clearTimeout(this._warnTimer);
+            clearInterval(this._countdownInterval);
+            document.getElementById('timeout-modal').classList.add('hidden');
+            const delay = (SESSION_DURATION - WARN_BEFORE) * 1000; // 50 min
+            this._warnTimer = setTimeout(() => this._showWarning(), delay);
+        },
+
+        _showWarning() {
+            this._remaining = WARN_BEFORE;
+            this._updateCountdown();
+            if (document.getElementById('upload-overlay').classList.contains('hidden')) {
+                document.getElementById('timeout-modal').classList.remove('hidden');
+            }
+            this._countdownInterval = setInterval(() => {
+                this._remaining--;
+                if (this._remaining <= 0) {
+                    clearInterval(this._countdownInterval);
+                    this._expire();
+                } else {
+                    this._updateCountdown();
+                }
+            }, 1000);
+        },
+
+        _updateCountdown() {
+            const m = Math.floor(this._remaining / 60);
+            const s = this._remaining % 60;
+            const el = document.getElementById('timeout-countdown');
+            if (el) el.textContent = `${m}:${String(s).padStart(2, '0')}`;
+        },
+
+        _expire() {
+            // Only show "expired" state if actual session data exists
+            if (!graphData || !graphData.servers || !graphData.servers.length) return;
+
+            document.getElementById('timeout-modal').classList.add('hidden');
+
+            // Clear all graph/session state (mirrors btn-reset logic)
+            graphData = null;
+            uploadedFiles = [];
+            const svg = document.getElementById('graph-svg');
+            svg.innerHTML = '';
+            Graph.init('#graph-svg', { onNodeClick: showNodeDetail, onLinkClick: showLinkDetail });
+            document.getElementById('server-filters').innerHTML = '';
+            document.getElementById('zone-search').value = '';
+            document.getElementById('zone-clear').classList.add('hidden');
+            document.getElementById('zone-suggestions').classList.add('hidden');
+            document.getElementById('upload-file-list').innerHTML = '';
+            document.getElementById('upload-submit').disabled = true;
+            document.getElementById('detail-panel').classList.add('hidden');
+            allLogs = [];
+            const logPanel = document.getElementById('log-panel');
+            if (logPanel) logPanel.classList.add('hidden');
+
+            document.getElementById('expired-overlay').classList.remove('hidden');
+        }
+    };
 
     function init() {
         Graph.init('#graph-svg', {
@@ -21,12 +88,14 @@
         setupButtons();
         setupUpload();
         setupLogPanel();
+        SessionManager.reset(); // start the 50-minute warn countdown
     }
 
     async function loadGraph() {
         try {
             const resp = await fetch('/api/graph');
             graphData = await resp.json();
+            SessionManager.reset();
 
             // Show upload overlay if no data loaded
             const overlay = document.getElementById('upload-overlay');
@@ -295,6 +364,7 @@
                 if (result.status === 'ok') {
                     overlay.classList.add('hidden');
                     showLogs(result.logs || []);
+                    SessionManager.reset();
                     await loadGraph();
                 } else {
                     const errorEl = document.getElementById('upload-error');
@@ -539,6 +609,16 @@
             }
         });
 
+        document.getElementById('timeout-continue').addEventListener('click', () => {
+            fetch('/api/refresh').catch(() => {});
+            SessionManager.reset();
+        });
+
+        document.getElementById('expired-reupload').addEventListener('click', () => {
+            document.getElementById('expired-overlay').classList.add('hidden');
+            document.getElementById('upload-overlay').classList.remove('hidden');
+        });
+
         // About modal
         const aboutOverlay = document.getElementById('about-overlay');
         document.getElementById('btn-about').addEventListener('click', () => {
@@ -568,6 +648,7 @@
                 return;
             }
             const data = await resp.json();
+            SessionManager.reset();
 
             // Compute per-view zone-type stats
             const viewStats = {}; // { viewName: { total, [zoneType]: count } }

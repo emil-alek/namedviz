@@ -154,6 +154,25 @@
         <div id="detail-content"></div>
     </div>
 
+    <div id="timeout-modal" class="modal-overlay hidden">
+        <div class="modal timeout-modal-box">
+            <h2>Session Expiring Soon</h2>
+            <p>Your session will expire in</p>
+            <div id="timeout-countdown" class="timeout-countdown">10:00</div>
+            <p>Click below to continue working.</p>
+            <button id="timeout-continue" class="timeout-continue-btn">Continue Session</button>
+        </div>
+    </div>
+
+    <div id="expired-overlay" class="upload-overlay hidden">
+        <div class="upload-modal">
+            <h2>Session Expired</h2>
+            <p>For security reasons your session has been cleared.<br>
+               Please re-upload your configuration to continue.</p>
+            <button id="expired-reupload" class="upload-submit">Re-upload Configuration</button>
+        </div>
+    </div>
+
     <script src="/static/js/graph.js"></script>
     <script src="/static/js/legend.js"></script>
     <script src="/static/js/export.js"></script>
